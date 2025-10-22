@@ -63,3 +63,32 @@ export interface ValidationError {
   field: string;
   message: string;
 }
+
+/**
+ * Stored credentials for gametime.net
+ */
+export interface Credential {
+  id: string;
+  user_id: string;
+  username: string;
+  password: string; // Will be encrypted before storage
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Credential state for Zustand store
+ */
+export interface CredentialState {
+  credentials: Credential | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+/**
+ * Credential input data (for UI forms)
+ */
+export interface CredentialInput {
+  username: string;
+  password: string;
+}
