@@ -1,17 +1,17 @@
 # JC Court Booking Tool - Development Progress
 
 ## Current Status
-- **Developer:** Completed credential storage feature on `dev/credential-storage`
-- **Tester:** Waiting to test credential storage
+- **Developer:** Completed auth routing integration on `dev/auth`
+- **Tester:** Ready to test auth screens (login, register, navigation)
 - **Last Updated:** 2025-10-22
 
 ---
 
 ## Feature: Auth (`dev/auth`)
-**Status:** 🚫 Testing Blocked - Route Integration Required
+**Status:** ✅ Ready for Testing - Routing Integration Complete
 **Developer Branch:** `dev/auth`
-**Tested On:** 2025-10-22
-**Tested By:** Tester Agent
+**Implemented:** 2025-10-22
+**Ready for Testing:** 2025-10-22
 
 ### Functions/Components to Implement:
 - [x] Type definitions (User, AuthState)
@@ -21,6 +21,9 @@
 - [x] RegisterScreen component
 - [x] Auth error handling & validation
 - [x] Session persistence
+- [x] Auth routing integration with Expo Router
+- [x] Conditional routing (auth screens vs app screens)
+- [x] Session restoration on app startup
 
 ### Implementation Details:
 - Created comprehensive TypeScript types for User, AuthState, and auth operations
@@ -31,44 +34,45 @@
 - Added validation utilities for email format and password strength
 - Integrated expo-secure-store for secure token persistence
 - All components have proper error handling and loading states
+- **NEW:** Created app/(auth)/_layout.tsx with Stack navigation for auth screens
+- **NEW:** Created app/(auth)/login.tsx route that imports LoginScreen and handles navigation
+- **NEW:** Created app/(auth)/register.tsx route that imports RegisterScreen and handles navigation
+- **NEW:** Updated app/_layout.tsx with auth-aware routing logic that:
+  - Initializes auth state on app startup via initializeAuth()
+  - Checks useSegments to determine current route group
+  - Routes to (auth)/login if unauthenticated
+  - Routes to (tabs) if authenticated
+  - Shows loading indicator during auth initialization
+  - Prevents animation/flicker during auth check
 
 ### Test Cases (Tester Checklist):
-- [ ] Login with valid email/password
-- [ ] Register new account successfully
-- [ ] Error: Invalid email format
-- [ ] Error: Password too short
-- [ ] Error: Email already exists
-- [ ] Session persistence after app close/reopen
-- [ ] Logout clears auth state
-- [ ] Navigation to login/register flows correctly
+- [ ] App starts showing login screen
+- [ ] Login with valid email/password navigates to app screens
+- [ ] Register new account successfully and navigates to app screens
+- [ ] Register link navigates to register screen
+- [ ] Back button from register returns to login
+- [ ] Error: Invalid email format shows error
+- [ ] Error: Password too short shows error
+- [ ] Error: Email already exists shows error
+- [ ] Error: Passwords don't match on register shows error
+- [ ] Session persistence: Close app and reopen, should stay logged in
+- [ ] Logout clears session and returns to login screen
+- [ ] Navigation flow smooth without flickers or delays
 
-### Testing Status: BLOCKED
-
-**Tester:** Unable to proceed with testing - auth screens not integrated into app routing structure.
-
-**Findings from Code Review:**
-- LoginScreen component implemented: C:\ANNIE-PROJECT\jc\src\screens\auth\LoginScreen.tsx
-- RegisterScreen component implemented: C:\ANNIE-PROJECT\jc\src\screens\auth\RegisterScreen.tsx
-- Auth service with Supabase integration implemented: C:\ANNIE-PROJECT\jc\src\services\authService.ts
-- Auth store with Zustand implemented: C:\ANNIE-PROJECT\jc\src\store\authStore.ts
-- Validation utilities implemented: C:\ANNIE-PROJECT\jc\src\utils\validation.ts
-- useAuth hook implemented: C:\ANNIE-PROJECT\jc\src\hooks\useAuth.ts
-- Supabase environment variables configured in .env.local
-
-**Critical Issue:**
-The auth screens exist as standalone components in `src/screens/auth/` but are not accessible through the Expo Router app structure. The current app routing (in `app/_layout.tsx` and `app/(tabs)/`) only shows the default Expo template screens. There are no routes defined for `/login` or `/register`.
-
-**Required Developer Action:**
-The developer needs to integrate the auth screens into the Expo Router structure before testing can proceed. Suggested approaches:
-1. Create `app/login.tsx` that imports and renders the LoginScreen component
-2. Create `app/register.tsx` that imports and renders the RegisterScreen component
-3. Update `app/_layout.tsx` to handle auth routing logic (show auth screens if not authenticated)
-4. Add navigation logic to redirect users between auth screens and protected screens
-
-**Tester Note:** As per my role constraints, I cannot modify source code to create these routes. Testing is blocked until the developer completes the routing integration.
+### Implementation Files:
+- /c/ANNIE-PROJECT/jc/app/_layout.tsx - Root layout with auth routing
+- /c/ANNIE-PROJECT/jc/app/(auth)/_layout.tsx - Auth stack navigation
+- /c/ANNIE-PROJECT/jc/app/(auth)/login.tsx - Login route
+- /c/ANNIE-PROJECT/jc/app/(auth)/register.tsx - Register route
+- /c/ANNIE-PROJECT/jc/src/screens/auth/LoginScreen.tsx - Login component
+- /c/ANNIE-PROJECT/jc/src/screens/auth/RegisterScreen.tsx - Register component
+- /c/ANNIE-PROJECT/jc/src/store/authStore.ts - Auth state management
+- /c/ANNIE-PROJECT/jc/src/services/authService.ts - Supabase auth service
+- /c/ANNIE-PROJECT/jc/src/hooks/useAuth.ts - Auth hook
+- /c/ANNIE-PROJECT/jc/src/utils/validation.ts - Form validation utilities
 
 ### Bugs Found:
-None yet - testing blocked due to missing route integration
+None identified during implementation
 
 ---
 
@@ -197,6 +201,7 @@ None currently
 ---
 
 ## Next Steps
-1. Tester: Test credential storage feature (save, update, delete, encryption validation)
-2. Developer: Start booking form feature on `dev/booking-form` branch
-3. After credential storage testing passes, developer addresses any blocking issues from auth testing
+1. Tester: Test auth screens (login, register, navigation, session persistence)
+2. After auth testing passes, developer addresses any blocking issues
+3. Tester: Test credential storage feature
+4. Developer: Start booking form feature on `dev/booking-form` branch
