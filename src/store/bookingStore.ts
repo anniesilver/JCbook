@@ -1,31 +1,46 @@
 /**
  * Zustand Booking Store
- * Manages booking state globally
+ * Manages booking state globally across the app
+ * Handles:
+ * - Loading user's bookings
+ * - Creating new bookings
+ * - Updating booking status
+ * - Deleting bookings
+ * - Filtering bookings by status
  */
 
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { Booking, BookingState, BookingInput } from '../types/index';
-import * as bookingsService from '../services/bookingsService';
+import * as bookingService from '../services/bookingService';
+import * as bookingScheduler from '../services/bookingScheduler';
 
 /**
- * Booking store type
+ * Booking store type extending BookingState
  */
 interface BookingStore extends BookingState {
   /**
+   * Load all bookings for the current user
+   */
+  loadUserBookings: (userId: string) => Promise<void>;
+
+  /**
    * Create a new booking
    */
-  createBooking: (userId: string, bookingData: BookingInput) => Promise<void>;
+  createBooking: (userId: string, bookingInput: BookingInput) => Promise<Booking | null>;
 
   /**
-   * Get user's bookings
+   * Update a booking's status
    */
-  getBookings: (userId: string) => Promise<void>;
+  updateBookingStatus: (
+    bookingId: string,
+    status: 'pending' | 'confirmed' | 'cancelled'
+  ) => Promise<void>;
 
   /**
-   * Update an existing booking
+   * Cancel a booking
    */
-  updateBooking: (bookingId: string, updates: Partial<BookingInput>) => Promise<void>;
+  cancelBooking: (bookingId: string) => Promise<void>;
 
   /**
    * Delete a booking
@@ -33,9 +48,14 @@ interface BookingStore extends BookingState {
   deleteBooking: (bookingId: string) => Promise<void>;
 
   /**
-   * Set current booking for editing
+   * Get upcoming bookings (pending status)
    */
-  setCurrentBooking: (booking: Booking | null) => void;
+  getUpcomingBookings: () => Booking[];
+
+  /**
+   * Get confirmed bookings
+   */
+  getConfirmedBookings: () => Booking[];
 
   /**
    * Clear error message
@@ -43,61 +63,29 @@ interface BookingStore extends BookingState {
   clearError: () => void;
 
   /**
-   * Clear all bookings
+   * Set current booking for detailed view
    */
-  clearBookings: () => void;
+  setCurrentBooking: (booking: Booking | null) => void;
 }
 
 /**
  * Create booking store with Zustand
  */
 export const useBookingStore = create<BookingStore>()(
-  immer((set) => ({
+  immer((set, get) => ({
     bookings: [],
     isLoading: false,
     error: null,
     currentBooking: null,
 
-    createBooking: async (userId: string, bookingData: BookingInput) => {
+    loadUserBookings: async (userId: string) => {
       set((state) => {
         state.isLoading = true;
         state.error = null;
       });
 
       try {
-        const { booking, error } = await bookingsService.createBooking(userId, bookingData);
-
-        if (error) {
-          set((state) => {
-            state.error = error.message;
-            state.isLoading = false;
-          });
-          return;
-        }
-
-        if (booking) {
-          set((state) => {
-            state.bookings.unshift(booking);
-            state.isLoading = false;
-          });
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to create booking';
-        set((state) => {
-          state.error = message;
-          state.isLoading = false;
-        });
-      }
-    },
-
-    getBookings: async (userId: string) => {
-      set((state) => {
-        state.isLoading = true;
-        state.error = null;
-      });
-
-      try {
-        const { bookings, error } = await bookingsService.getUserBookings(userId);
+        const { bookings, error } = await bookingService.getUserBookings(userId);
 
         if (error) {
           set((state) => {
@@ -108,11 +96,11 @@ export const useBookingStore = create<BookingStore>()(
         }
 
         set((state) => {
-          state.bookings = bookings;
+          state.bookings = bookings || [];
           state.isLoading = false;
         });
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to fetch bookings';
+        const message = err instanceof Error ? err.message : 'Failed to load bookings';
         set((state) => {
           state.error = message;
           state.isLoading = false;
@@ -120,19 +108,64 @@ export const useBookingStore = create<BookingStore>()(
       }
     },
 
-    updateBooking: async (bookingId: string, updates: Partial<BookingInput>) => {
+    createBooking: async (userId: string, bookingInput: BookingInput) => {
       set((state) => {
         state.isLoading = true;
         state.error = null;
       });
 
       try {
-        const { booking, error } = await bookingsService.updateBooking(bookingId, updates);
+        const { booking, error } = await bookingScheduler.createBookingWithSchedule(
+          userId,
+          bookingInput
+        );
+
+        if (error) {
+          set((state) => {
+            state.error = error;
+            state.isLoading = false;
+          });
+          return null;
+        }
+
+        if (!booking) {
+          set((state) => {
+            state.error = 'Failed to create booking';
+            state.isLoading = false;
+          });
+          return null;
+        }
+
+        set((state) => {
+          state.bookings.push(booking);
+          state.isLoading = false;
+        });
+
+        return booking;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to create booking';
+        set((state) => {
+          state.error = message;
+          state.isLoading = false;
+        });
+        return null;
+      }
+    },
+
+    updateBookingStatus: async (
+      bookingId: string,
+      status: 'pending' | 'confirmed' | 'cancelled'
+    ) => {
+      try {
+        const { booking, error } = await bookingService.updateBookingStatus(
+          bookingId,
+          status
+        );
 
         if (error) {
           set((state) => {
             state.error = error.message;
-            state.isLoading = false;
           });
           return;
         }
@@ -143,52 +176,80 @@ export const useBookingStore = create<BookingStore>()(
             if (index !== -1) {
               state.bookings[index] = booking;
             }
-            state.isLoading = false;
           });
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to update booking';
+        const message =
+          err instanceof Error ? err.message : 'Failed to update booking';
         set((state) => {
           state.error = message;
-          state.isLoading = false;
+        });
+      }
+    },
+
+    cancelBooking: async (bookingId: string) => {
+      try {
+        const { success, error } = await bookingService.cancelBooking(bookingId);
+
+        if (error) {
+          set((state) => {
+            state.error = error.message;
+          });
+          return;
+        }
+
+        if (success) {
+          set((state) => {
+            const index = state.bookings.findIndex((b) => b.id === bookingId);
+            if (index !== -1) {
+              state.bookings[index].status = 'cancelled';
+            }
+          });
+        }
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to cancel booking';
+        set((state) => {
+          state.error = message;
         });
       }
     },
 
     deleteBooking: async (bookingId: string) => {
-      set((state) => {
-        state.isLoading = true;
-        state.error = null;
-      });
-
       try {
-        const error = await bookingsService.deleteBooking(bookingId);
+        const { success, error } = await bookingService.deleteBooking(bookingId);
 
         if (error) {
           set((state) => {
             state.error = error.message;
-            state.isLoading = false;
           });
           return;
         }
 
-        set((state) => {
-          state.bookings = state.bookings.filter((b) => b.id !== bookingId);
-          state.isLoading = false;
-        });
+        if (success) {
+          set((state) => {
+            state.bookings = state.bookings.filter((b) => b.id !== bookingId);
+          });
+        }
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to delete booking';
+        const message =
+          err instanceof Error ? err.message : 'Failed to delete booking';
         set((state) => {
           state.error = message;
-          state.isLoading = false;
         });
       }
     },
 
-    setCurrentBooking: (booking: Booking | null) => {
-      set((state) => {
-        state.currentBooking = booking;
-      });
+    getUpcomingBookings: () => {
+      const state = get();
+      return state.bookings.filter(
+        (b) => b.status === 'pending' && b.auto_book_status === 'pending'
+      );
+    },
+
+    getConfirmedBookings: () => {
+      const state = get();
+      return state.bookings.filter((b) => b.status === 'confirmed');
     },
 
     clearError: () => {
@@ -197,10 +258,9 @@ export const useBookingStore = create<BookingStore>()(
       });
     },
 
-    clearBookings: () => {
+    setCurrentBooking: (booking: Booking | null) => {
       set((state) => {
-        state.bookings = [];
-        state.currentBooking = null;
+        state.currentBooking = booking;
       });
     },
   }))

@@ -13,42 +13,43 @@ import {
   Alert,
   TextInput,
   Picker,
+  CheckBox,
 } from 'react-native';
 import { ThemedText } from '../../components/themed-text';
 import { ThemedView } from '../../components/themed-view';
 import { useAuth } from '../../hooks/useAuth';
 import { useBooking } from '../../hooks/useBooking';
-import { BookingRecurrence, BookingInput } from '../../types/index';
+import { BookingRecurrence, BookingInput, Duration } from '../../types/index';
 
 /**
- * List of available courts
+ * List of available courts (1-6)
  */
 const COURTS = [
-  { value: '', label: 'Select a court...' },
-  { value: 'court_1', label: 'Court 1 - Downtown' },
-  { value: 'court_2', label: 'Court 2 - Uptown' },
-  { value: 'court_3', label: 'Court 3 - Riverside' },
-  { value: 'court_4', label: 'Court 4 - Park' },
+  { value: 0, label: 'Select a court...' },
+  { value: 1, label: 'Court 1' },
+  { value: 2, label: 'Court 2' },
+  { value: 3, label: 'Court 3' },
+  { value: 4, label: 'Court 4' },
+  { value: 5, label: 'Court 5' },
+  { value: 6, label: 'Court 6' },
 ];
 
 /**
- * Available time slots
+ * Available time slots (30-minute increments from 6:00 AM to 10:30 PM)
  */
 const TIME_SLOTS = [
-  '08:00',
-  '09:00',
-  '10:00',
-  '11:00',
-  '12:00',
-  '13:00',
-  '14:00',
-  '15:00',
-  '16:00',
-  '17:00',
-  '18:00',
-  '19:00',
-  '20:00',
+  '06:00', '06:30', '07:00', '07:30', '08:00', '08:30',
+  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
+  '18:00', '18:30', '19:00', '19:30', '20:00', '20:30',
+  '21:00', '21:30', '22:00', '22:30',
 ];
+
+/**
+ * Duration options (1 hr or 1.5 hr only)
+ */
+const DURATION_OPTIONS: Duration[] = [1, 1.5];
 
 /**
  * Recurrence options
@@ -56,19 +57,23 @@ const TIME_SLOTS = [
 const RECURRENCE_OPTIONS = [
   { value: BookingRecurrence.ONCE, label: 'Once' },
   { value: BookingRecurrence.WEEKLY, label: 'Weekly' },
+  { value: BookingRecurrence.BI_WEEKLY, label: 'Bi-Weekly' },
   { value: BookingRecurrence.MONTHLY, label: 'Monthly' },
 ];
 
 /**
- * Number of players options
+ * Booking type options
  */
-const PLAYER_COUNTS = [2, 3, 4, 5, 6, 7, 8];
+const BOOKING_TYPES = [
+  { value: 'singles', label: 'Singles' },
+  { value: 'doubles', label: 'Doubles' },
+];
 
 /**
  * Validates booking form inputs
  */
 function validateBooking(formData: BookingInput): string | null {
-  if (!formData.court) {
+  if (formData.preferred_court === 0) {
     return 'Please select a court';
   }
   if (!formData.booking_date) {
@@ -77,8 +82,11 @@ function validateBooking(formData: BookingInput): string | null {
   if (!formData.booking_time) {
     return 'Please select a booking time';
   }
-  if (formData.number_of_players < 2 || formData.number_of_players > 8) {
-    return 'Number of players must be between 2 and 8';
+  if (!formData.booking_type) {
+    return 'Please select a booking type (Singles or Doubles)';
+  }
+  if (!formData.duration_hours) {
+    return 'Please select a duration';
   }
   if (!formData.recurrence) {
     return 'Please select a recurrence pattern';
@@ -124,10 +132,12 @@ export default function BookingFormScreen() {
 
   // Form state
   const [formData, setFormData] = useState<BookingInput>({
-    court: '',
+    preferred_court: 0,
+    accept_any_court: false,
     booking_date: getTodayDateString(),
     booking_time: '10:00',
-    number_of_players: 4,
+    booking_type: 'singles',
+    duration_hours: 1,
     recurrence: BookingRecurrence.ONCE,
   });
 
@@ -207,10 +217,12 @@ export default function BookingFormScreen() {
    */
   const handleReset = () => {
     setFormData({
-      court: '',
+      preferred_court: 0,
+      accept_any_court: false,
       booking_date: getTodayDateString(),
       booking_time: '10:00',
-      number_of_players: 4,
+      booking_type: 'singles',
+      duration_hours: 1,
       recurrence: BookingRecurrence.ONCE,
     });
     setValidationError(null);
@@ -242,17 +254,27 @@ export default function BookingFormScreen() {
 
         {/* Form Fields */}
         <View style={styles.formGroup}>
-          <ThemedText style={styles.label}>Court Selection</ThemedText>
+          <ThemedText style={styles.label}>Preferred Court</ThemedText>
           <View style={styles.pickerContainer}>
             <Picker
-              selectedValue={formData.court}
-              onValueChange={(value) => setFormData({ ...formData, court: value })}
+              selectedValue={formData.preferred_court}
+              onValueChange={(value) => setFormData({ ...formData, preferred_court: value })}
               style={styles.picker}
             >
               {COURTS.map((court) => (
                 <Picker.Item key={court.value} label={court.label} value={court.value} />
               ))}
             </Picker>
+          </View>
+          <View style={styles.checkboxRow}>
+            <CheckBox
+              value={formData.accept_any_court}
+              onValueChange={(value) => setFormData({ ...formData, accept_any_court: value })}
+              style={styles.checkbox}
+            />
+            <ThemedText style={styles.checkboxLabel}>
+              Accept any available court if preferred is taken
+            </ThemedText>
           </View>
         </View>
 
@@ -283,15 +305,31 @@ export default function BookingFormScreen() {
         </View>
 
         <View style={styles.formGroup}>
-          <ThemedText style={styles.label}>Number of Players</ThemedText>
+          <ThemedText style={styles.label}>Booking Type</ThemedText>
+          <View style={styles.radioGroup}>
+            {BOOKING_TYPES.map((type) => (
+              <TouchableOpacity
+                key={type.value}
+                style={styles.radioOption}
+                onPress={() => setFormData({ ...formData, booking_type: type.value as any })}
+              >
+                <View style={[styles.radio, formData.booking_type === type.value && styles.radioSelected]} />
+                <ThemedText>{type.label}</ThemedText>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.formGroup}>
+          <ThemedText style={styles.label}>Duration</ThemedText>
           <View style={styles.pickerContainer}>
             <Picker
-              selectedValue={formData.number_of_players}
-              onValueChange={(value) => setFormData({ ...formData, number_of_players: value })}
+              selectedValue={formData.duration_hours}
+              onValueChange={(value) => setFormData({ ...formData, duration_hours: value })}
               style={styles.picker}
             >
-              {PLAYER_COUNTS.map((count) => (
-                <Picker.Item key={count} label={count.toString()} value={count} />
+              {DURATION_OPTIONS.map((duration) => (
+                <Picker.Item key={duration} label={`${duration} hour${duration > 1 ? 's' : ''}`} value={duration} />
               ))}
             </Picker>
           </View>
@@ -318,7 +356,13 @@ export default function BookingFormScreen() {
           <View style={styles.summaryItem}>
             <ThemedText style={styles.summaryLabel}>Court:</ThemedText>
             <ThemedText style={styles.summaryValue}>
-              {formData.court || 'Not selected'}
+              {formData.preferred_court > 0 ? `Court ${formData.preferred_court}` : 'Not selected'}
+            </ThemedText>
+          </View>
+          <View style={styles.summaryItem}>
+            <ThemedText style={styles.summaryLabel}>Accept Any Court:</ThemedText>
+            <ThemedText style={styles.summaryValue}>
+              {formData.accept_any_court ? 'Yes' : 'No'}
             </ThemedText>
           </View>
           <View style={styles.summaryItem}>
@@ -330,8 +374,14 @@ export default function BookingFormScreen() {
             <ThemedText style={styles.summaryValue}>{formData.booking_time}</ThemedText>
           </View>
           <View style={styles.summaryItem}>
-            <ThemedText style={styles.summaryLabel}>Players:</ThemedText>
-            <ThemedText style={styles.summaryValue}>{formData.number_of_players}</ThemedText>
+            <ThemedText style={styles.summaryLabel}>Type:</ThemedText>
+            <ThemedText style={styles.summaryValue}>
+              {formData.booking_type.charAt(0).toUpperCase() + formData.booking_type.slice(1)}
+            </ThemedText>
+          </View>
+          <View style={styles.summaryItem}>
+            <ThemedText style={styles.summaryLabel}>Duration:</ThemedText>
+            <ThemedText style={styles.summaryValue}>{formData.duration_hours} hour(s)</ThemedText>
           </View>
           <View style={styles.summaryItem}>
             <ThemedText style={styles.summaryLabel}>Recurrence:</ThemedText>
@@ -351,7 +401,7 @@ export default function BookingFormScreen() {
             {isLoading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <ThemedText style={styles.submitButtonText}>Book Court</ThemedText>
+              <ThemedText style={styles.submitButtonText}>Schedule Booking</ThemedText>
             )}
           </TouchableOpacity>
 
@@ -489,5 +539,39 @@ const styles = StyleSheet.create({
   },
   spacer: {
     height: 16,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    flex: 1,
+  },
+  radioGroup: {
+    flexDirection: 'row',
+    gap: 20,
+  },
+  radioOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#999',
+  },
+  radioSelected: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#4CAF50',
   },
 });
