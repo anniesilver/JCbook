@@ -23,6 +23,12 @@ import { useAuth } from '../../hooks/useAuth';
 import { useBooking } from '../../hooks/useBooking';
 import { BookingRecurrence, BookingInput, Duration } from '../../types/index';
 
+// Web-specific import
+let WebDateInput: any = null;
+if (Platform.OS === 'web') {
+  WebDateInput = require('react-native').TextInput as any;
+}
+
 /**
  * List of available courts (1-6)
  */
@@ -309,32 +315,51 @@ export default function BookingFormScreen() {
 
         <View style={styles.formGroup}>
           <ThemedText style={styles.label}>Booking Date</ThemedText>
-          <TouchableOpacity
-            style={styles.dateButton}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <ThemedText style={styles.dateButtonText}>
-              {formData.booking_date} (Tap to change)
-            </ThemedText>
-          </TouchableOpacity>
 
-          {showDatePicker && (
-            <DateTimePicker
-              value={selectedDate}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={handleDateChange}
-              minimumDate={new Date()}
+          {Platform.OS === 'web' ? (
+            // Web: Use HTML5 date input via TextInput with type="date"
+            <TextInput
+              style={[styles.input, styles.webDateInput]}
+              placeholder="Select a date"
+              value={formData.booking_date}
+              onChangeText={(text) => {
+                setFormData({ ...formData, booking_date: text });
+                setSelectedDate(new Date(text));
+              }}
+              // @ts-ignore - type="date" is web-only
+              inputMode="date"
             />
-          )}
+          ) : (
+            // Native: Use DateTimePicker with button
+            <>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <ThemedText style={styles.dateButtonText}>
+                  {formData.booking_date} (Tap to change)
+                </ThemedText>
+              </TouchableOpacity>
 
-          {Platform.OS === 'ios' && showDatePicker && (
-            <TouchableOpacity
-              style={styles.datePickerConfirm}
-              onPress={() => setShowDatePicker(false)}
-            >
-              <ThemedText style={styles.datePickerConfirmText}>Done</ThemedText>
-            </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={selectedDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={handleDateChange}
+                  minimumDate={new Date()}
+                />
+              )}
+
+              {Platform.OS === 'ios' && showDatePicker && (
+                <TouchableOpacity
+                  style={styles.datePickerConfirm}
+                  onPress={() => setShowDatePicker(false)}
+                >
+                  <ThemedText style={styles.datePickerConfirmText}>Done</ThemedText>
+                </TouchableOpacity>
+              )}
+            </>
           )}
         </View>
 
@@ -519,6 +544,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000',
     backgroundColor: '#FFF',
+  },
+  webDateInput: {
+    // Web-specific styling for date input
+    paddingVertical: 12,
   },
   pickerContainer: {
     borderWidth: 1,
