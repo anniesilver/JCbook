@@ -51,6 +51,11 @@ export default function RootLayout() {
       return;
     }
 
+    // Don't navigate if we don't have segments yet (initial render)
+    if (segments.length === 0) {
+      return;
+    }
+
     const inAuthGroup = segments[0] === '(auth)';
     const inTabsGroup = segments[0] === '(tabs)';
 
@@ -58,11 +63,21 @@ export default function RootLayout() {
     if (!isAuthenticated && inTabsGroup) {
       // User is not authenticated but in tabs group, redirect to login
       routeCheckRef.current = true;
-      router.replace('/(auth)/login');
+      try {
+        router.replace('/(auth)/login');
+      } catch (error) {
+        // Ignore navigation errors during initialization
+        console.error('Navigation error (expected during init):', error);
+      }
     } else if (isAuthenticated && inAuthGroup) {
       // User is authenticated but in auth group, redirect to app
       routeCheckRef.current = true;
-      router.replace('/(tabs)');
+      try {
+        router.replace('/(tabs)');
+      } catch (error) {
+        // Ignore navigation errors during initialization
+        console.error('Navigation error (expected during init):', error);
+      }
     }
   }, [isAuthenticated, isLoading, segments, router]);
 

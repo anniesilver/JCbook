@@ -75,7 +75,7 @@ export function RegisterScreen({
     setPasswordError(passwordErr);
     setConfirmPasswordError(confirmPasswordErr);
 
-    return !emailErr && !passwordErr && !confirmPasswordErr && agreedToTerms;
+    return !emailErr && !passwordErr && !confirmPasswordErr;
   };
 
   /**
@@ -136,8 +136,7 @@ export function RegisterScreen({
   const isFormValid =
     isValidEmail(email) &&
     isValidPassword(password) &&
-    password === confirmPassword &&
-    agreedToTerms;
+    password === confirmPassword;
 
   return (
     <SafeAreaView style={styles.container}>
