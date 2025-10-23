@@ -13,6 +13,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/hooks/useAuth';
+import { initializeAuthListener } from '@/services/authListener';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -31,9 +32,12 @@ export default function RootLayout() {
 
   /**
    * Initialize authentication on app startup
-   * Check if there's a valid session stored locally
+   * Check if there's a valid session stored locally and set up auth listener
    */
   useEffect(() => {
+    // Set up auth state change listener first
+    initializeAuthListener();
+    // Then check for existing session
     initializeAuth();
   }, [initializeAuth]);
 
