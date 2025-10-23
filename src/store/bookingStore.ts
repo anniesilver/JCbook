@@ -14,6 +14,7 @@ import { immer } from 'zustand/middleware/immer';
 import { Booking, BookingState, BookingInput } from '../types/index';
 import * as bookingService from '../services/bookingService';
 import * as bookingScheduler from '../services/bookingScheduler';
+import { useAuthStore } from './authStore';
 
 /**
  * Booking store type extending BookingState
@@ -21,8 +22,9 @@ import * as bookingScheduler from '../services/bookingScheduler';
 interface BookingStore extends BookingState {
   /**
    * Load all bookings for the current user
+   * Uses current auth user from authStore
    */
-  loadUserBookings: (userId: string) => Promise<void>;
+  loadUserBookings: () => Promise<void>;
 
   /**
    * Create a new booking
@@ -36,6 +38,11 @@ interface BookingStore extends BookingState {
     bookingId: string,
     status: 'pending' | 'confirmed' | 'cancelled'
   ) => Promise<void>;
+
+  /**
+   * Retry a failed booking
+   */
+  retryBooking: (bookingId: string) => Promise<void>;
 
   /**
    * Cancel a booking
@@ -78,14 +85,23 @@ export const useBookingStore = create<BookingStore>()(
     error: null,
     currentBooking: null,
 
-    loadUserBookings: async (userId: string) => {
+    loadUserBookings: async () => {
       set((state) => {
         state.isLoading = true;
         state.error = null;
       });
 
       try {
-        const { bookings, error } = await bookingService.getUserBookings(userId);
+        const authState = useAuthStore.getState();
+        if (!authState.user?.id) {
+          set((state) => {
+            state.error = 'User not authenticated';
+            state.isLoading = false;
+          });
+          return;
+        }
+
+        const { bookings, error } = await bookingService.getUserBookings(authState.user.id);
 
         if (error) {
           set((state) => {
@@ -181,6 +197,40 @@ export const useBookingStore = create<BookingStore>()(
       } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Failed to update booking';
+        set((state) => {
+          state.error = message;
+        });
+      }
+    },
+
+    retryBooking: async (bookingId: string) => {
+      try {
+        // Reset booking status to 'pending' and clear error
+        const { booking, error } = await bookingService.updateBookingStatus(
+          bookingId,
+          'pending'
+        );
+
+        if (error) {
+          set((state) => {
+            state.error = error.message;
+          });
+          return;
+        }
+
+        if (booking) {
+          set((state) => {
+            const index = state.bookings.findIndex((b) => b.id === bookingId);
+            if (index !== -1) {
+              state.bookings[index] = booking;
+              state.bookings[index].auto_book_status = 'pending';
+              state.bookings[index].error_message = null;
+            }
+          });
+        }
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to retry booking';
         set((state) => {
           state.error = message;
         });
