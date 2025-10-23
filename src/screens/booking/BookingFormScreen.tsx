@@ -23,11 +23,39 @@ import { useAuth } from '../../hooks/useAuth';
 import { useBooking } from '../../hooks/useBooking';
 import { BookingRecurrence, BookingInput, Duration } from '../../types/index';
 
-// Web-specific import
-let WebDateInput: any = null;
-if (Platform.OS === 'web') {
-  WebDateInput = require('react-native').TextInput as any;
-}
+// Web-only date input component
+const WebDateInput: React.FC<{
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder?: string;
+  style?: any;
+}> = ({ value, onChangeText, placeholder, style }) => {
+  return (
+    <input
+      type="date"
+      value={value}
+      onChange={(e) => onChangeText(e.target.value)}
+      placeholder={placeholder}
+      style={{
+        borderWidth: 1,
+        borderColor: '#DDD',
+        borderRadius: 8,
+        paddingLeft: 12,
+        paddingRight: 12,
+        paddingTop: 10,
+        paddingBottom: 10,
+        fontSize: 16,
+        color: '#000',
+        backgroundColor: '#FFF',
+        width: '100%',
+        boxSizing: 'border-box',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
+        ...style
+      } as React.CSSProperties}
+      min={new Date().toISOString().split('T')[0]}
+    />
+  );
+};
 
 /**
  * List of available courts (1-6)
@@ -317,10 +345,8 @@ export default function BookingFormScreen() {
           <ThemedText style={styles.label}>Booking Date</ThemedText>
 
           {Platform.OS === 'web' ? (
-            // Web: Use HTML5 date input via TextInput with type="date"
-            <TextInput
-              style={[styles.input, styles.webDateInput]}
-              placeholder="YYYY-MM-DD"
+            // Web: Use native HTML5 date input element
+            <WebDateInput
               value={formData.booking_date}
               onChangeText={(text) => {
                 setFormData({ ...formData, booking_date: text });
@@ -328,9 +354,7 @@ export default function BookingFormScreen() {
                   setSelectedDate(new Date(text));
                 }
               }}
-              // @ts-ignore - type="date" is web-only, nativeID is used for web form input type
-              type="date"
-              nativeID="booking-date-input"
+              placeholder="YYYY-MM-DD"
             />
           ) : (
             // Native: Use DateTimePicker with button
