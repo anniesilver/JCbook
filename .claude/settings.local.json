@@ -10,7 +10,12 @@
       "mcp__chrome-devtools__take_screenshot",
       "mcp__chrome-devtools__click",
       "mcp__chrome-devtools__fill",
-      "mcp__chrome-devtools__list_console_messages"
+      "mcp__chrome-devtools__list_console_messages",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "mcp__chrome-devtools__wait_for",
+      "mcp__chrome-devtools__evaluate_script",
+      "mcp__chrome-devtools__get_network_request"
     ],
     "deny": [],
     "ask": []
