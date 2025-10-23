@@ -99,8 +99,24 @@ export interface CredentialInput {
 export enum BookingRecurrence {
   ONCE = 'once',
   WEEKLY = 'weekly',
+  BI_WEEKLY = 'bi-weekly',
   MONTHLY = 'monthly',
 }
+
+/**
+ * Booking type
+ */
+export type BookingType = 'singles' | 'doubles';
+
+/**
+ * Duration in hours
+ */
+export type Duration = 1 | 1.5;
+
+/**
+ * Auto-booking status
+ */
+export type AutoBookStatus = 'pending' | 'in_progress' | 'success' | 'failed';
 
 /**
  * Booking type representing a court booking
@@ -109,11 +125,21 @@ export interface Booking {
   id: string;
   user_id: string;
   court: string;
+  preferred_court: number; // 1-6
+  accept_any_court: boolean;
   booking_date: string; // ISO format YYYY-MM-DD
   booking_time: string; // HH:mm format
-  number_of_players: number;
+  booking_type: BookingType; // 'singles' | 'doubles'
+  duration_hours: Duration; // 1 or 1.5
   recurrence: BookingRecurrence;
+  recurrence_end_date?: string; // Optional end date for recurring bookings
+  actual_court?: number; // Which court was actually booked
   status: 'pending' | 'confirmed' | 'cancelled';
+  auto_book_status: AutoBookStatus;
+  scheduled_execute_time: string; // When to execute the auto-booking
+  gametime_confirmation_id?: string;
+  error_message?: string;
+  retry_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -132,9 +158,12 @@ export interface BookingState {
  * Booking input data (for UI forms)
  */
 export interface BookingInput {
-  court: string;
-  booking_date: string;
-  booking_time: string;
-  number_of_players: number;
+  preferred_court: number; // 1-6
+  accept_any_court: boolean;
+  booking_date: string; // ISO format YYYY-MM-DD
+  booking_time: string; // HH:mm format
+  booking_type: BookingType; // 'singles' | 'doubles'
+  duration_hours: Duration; // 1 or 1.5
   recurrence: BookingRecurrence;
+  recurrence_end_date?: string;
 }
