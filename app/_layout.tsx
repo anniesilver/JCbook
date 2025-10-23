@@ -4,7 +4,7 @@
  * Shows auth screens or app screens depending on whether user is logged in
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useSegments, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -27,6 +27,7 @@ export default function RootLayout() {
   const { isAuthenticated, isLoading, initializeAuth } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const routeCheckRef = useRef(false);
 
   /**
    * Initialize authentication on app startup
@@ -45,13 +46,22 @@ export default function RootLayout() {
       return;
     }
 
-    const inAuthGroup = segments[0] === '(auth)';
+    // Prevent multiple route checks
+    if (routeCheckRef.current) {
+      return;
+    }
 
-    if (!isAuthenticated && !inAuthGroup) {
-      // User is not authenticated and not in auth group, redirect to login
+    const inAuthGroup = segments[0] === '(auth)';
+    const inTabsGroup = segments[0] === '(tabs)';
+
+    // Only navigate if we're in the wrong group
+    if (!isAuthenticated && inTabsGroup) {
+      // User is not authenticated but in tabs group, redirect to login
+      routeCheckRef.current = true;
       router.replace('/(auth)/login');
     } else if (isAuthenticated && inAuthGroup) {
       // User is authenticated but in auth group, redirect to app
+      routeCheckRef.current = true;
       router.replace('/(tabs)');
     }
   }, [isAuthenticated, isLoading, segments, router]);
