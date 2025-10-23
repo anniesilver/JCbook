@@ -320,14 +320,17 @@ export default function BookingFormScreen() {
             // Web: Use HTML5 date input via TextInput with type="date"
             <TextInput
               style={[styles.input, styles.webDateInput]}
-              placeholder="Select a date"
+              placeholder="YYYY-MM-DD"
               value={formData.booking_date}
               onChangeText={(text) => {
                 setFormData({ ...formData, booking_date: text });
-                setSelectedDate(new Date(text));
+                if (text && /^\d{4}-\d{2}-\d{2}$/.test(text)) {
+                  setSelectedDate(new Date(text));
+                }
               }}
-              // @ts-ignore - type="date" is web-only
-              inputMode="date"
+              // @ts-ignore - type="date" is web-only, nativeID is used for web form input type
+              type="date"
+              nativeID="booking-date-input"
             />
           ) : (
             // Native: Use DateTimePicker with button
