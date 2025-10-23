@@ -30,11 +30,19 @@ const WebDateInput: React.FC<{
   placeholder?: string;
   style?: any;
 }> = ({ value, onChangeText, placeholder, style }) => {
+  // Ensure value is always a string in YYYY-MM-DD format
+  const displayValue = value && typeof value === 'string' ? value : '';
+
   return (
     <input
       type="date"
-      value={value}
-      onChange={(e) => onChangeText(e.target.value)}
+      value={displayValue}
+      onChange={(e) => {
+        const newValue = e.target.value;
+        if (newValue) {
+          onChangeText(newValue);
+        }
+      }}
       placeholder={placeholder}
       style={{
         borderWidth: 1,
@@ -159,10 +167,14 @@ function getTodayDateString(): string {
   return today.toISOString().split('T')[0];
 }
 
+interface BookingFormScreenProps {
+  onBookingSuccess?: () => void;
+}
+
 /**
  * BookingFormScreen Component
  */
-export default function BookingFormScreen() {
+export default function BookingFormScreen({ onBookingSuccess }: BookingFormScreenProps) {
   const { user } = useAuth();
   const { createBooking, isLoading, error, clearError } = useBooking();
 
@@ -220,11 +232,15 @@ export default function BookingFormScreen() {
               recurrence: BookingRecurrence.ONCE,
             });
             setValidationError(null);
+            // Redirect to My Bookings if callback provided
+            if (onBookingSuccess) {
+              onBookingSuccess();
+            }
           },
         },
       ]);
     }
-  }, [submitSuccess]);
+  }, [submitSuccess, onBookingSuccess]);
 
   /**
    * Handle form submission

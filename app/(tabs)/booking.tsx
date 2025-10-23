@@ -54,7 +54,11 @@ export default function BookingTabScreen() {
 
       {/* View Container */}
       <View style={styles.viewContainer}>
-        {viewMode === 'form' && <BookingFormScreen />}
+        {viewMode === 'form' && (
+          <BookingFormScreen
+            onBookingSuccess={() => setViewMode('history')}
+          />
+        )}
         {viewMode === 'history' && (
           <BookingHistoryScreen
             showCloseButton={false}
