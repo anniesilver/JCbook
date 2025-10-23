@@ -17,12 +17,14 @@ export function useBooking() {
     error,
     currentBooking,
     createBooking: storeCreateBooking,
-    getBookings: storeGetBookings,
-    updateBooking: storeUpdateBooking,
+    loadUserBookings,
+    updateBookingStatus,
+    cancelBooking: storeCancelBooking,
     deleteBooking: storeDeleteBooking,
+    getUpcomingBookings,
+    getConfirmedBookings,
     setCurrentBooking,
     clearError,
-    clearBookings,
   } = useBookingStore();
 
   /**
@@ -30,29 +32,39 @@ export function useBooking() {
    */
   const createBooking = useCallback(
     async (userId: string, bookingData: BookingInput) => {
-      await storeCreateBooking(userId, bookingData);
+      return await storeCreateBooking(userId, bookingData);
     },
     [storeCreateBooking]
   );
 
   /**
-   * Get user's bookings
+   * Load user's bookings
    */
   const getBookings = useCallback(
     async (userId: string) => {
-      await storeGetBookings(userId);
+      await loadUserBookings(userId);
     },
-    [storeGetBookings]
+    [loadUserBookings]
   );
 
   /**
-   * Update an existing booking
+   * Update booking status
    */
   const updateBooking = useCallback(
-    async (bookingId: string, updates: Partial<BookingInput>) => {
-      await storeUpdateBooking(bookingId, updates);
+    async (bookingId: string, status: 'pending' | 'confirmed' | 'cancelled') => {
+      await updateBookingStatus(bookingId, status);
     },
-    [storeUpdateBooking]
+    [updateBookingStatus]
+  );
+
+  /**
+   * Cancel a booking
+   */
+  const cancelBooking = useCallback(
+    async (bookingId: string) => {
+      await storeCancelBooking(bookingId);
+    },
+    [storeCancelBooking]
   );
 
   /**
@@ -83,9 +95,11 @@ export function useBooking() {
     createBooking,
     getBookings,
     updateBooking,
+    cancelBooking,
     deleteBooking,
     selectBooking,
+    getUpcomingBookings,
+    getConfirmedBookings,
     clearError,
-    clearBookings,
   };
 }

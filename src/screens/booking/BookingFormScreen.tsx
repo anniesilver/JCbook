@@ -164,17 +164,19 @@ export default function BookingFormScreen() {
 
   useEffect(() => {
     if (submitSuccess) {
-      Alert.alert('Success', 'Booking created successfully!', [
+      Alert.alert('Success', 'Booking created successfully! The system will automatically submit your booking at 8:00 AM on the scheduled date.', [
         {
           text: 'OK',
           onPress: () => {
             setSubmitSuccess(false);
             // Reset form
             setFormData({
-              court: '',
+              preferred_court: 0,
+              accept_any_court: false,
               booking_date: getTodayDateString(),
               booking_time: '10:00',
-              number_of_players: 4,
+              booking_type: 'singles',
+              duration_hours: 1,
               recurrence: BookingRecurrence.ONCE,
             });
             setValidationError(null);
