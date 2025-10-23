@@ -14,7 +14,9 @@ import {
   TextInput,
   Picker,
   CheckBox,
+  Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { ThemedText } from '../../components/themed-text';
 import { ThemedView } from '../../components/themed-view';
 import { useAuth } from '../../hooks/useAuth';
@@ -144,6 +146,10 @@ export default function BookingFormScreen() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
+  // Date picker state
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date(getTodayDateString()));
+
   /**
    * Clear errors when component mounts
    */
@@ -215,9 +221,29 @@ export default function BookingFormScreen() {
   };
 
   /**
+   * Handle date picker changes
+   */
+  const handleDateChange = (event: any, date?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+
+    if (date) {
+      setSelectedDate(date);
+      // Format date to YYYY-MM-DD
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const formattedDate = `${year}-${month}-${day}`;
+      setFormData({ ...formData, booking_date: formattedDate });
+    }
+  };
+
+  /**
    * Handle form reset
    */
   const handleReset = () => {
+    const today = new Date();
     setFormData({
       preferred_court: 0,
       accept_any_court: false,
@@ -227,6 +253,7 @@ export default function BookingFormScreen() {
       duration_hours: 1,
       recurrence: BookingRecurrence.ONCE,
     });
+    setSelectedDate(today);
     setValidationError(null);
     clearError();
   };
@@ -281,14 +308,34 @@ export default function BookingFormScreen() {
         </View>
 
         <View style={styles.formGroup}>
-          <ThemedText style={styles.label}>Date (YYYY-MM-DD)</ThemedText>
-          <TextInput
-            style={styles.input}
-            placeholder="2025-10-25"
-            value={formData.booking_date}
-            onChangeText={(text) => setFormData({ ...formData, booking_date: text })}
-            placeholderTextColor="#999"
-          />
+          <ThemedText style={styles.label}>Booking Date</ThemedText>
+          <TouchableOpacity
+            style={styles.dateButton}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <ThemedText style={styles.dateButtonText}>
+              {formData.booking_date} (Tap to change)
+            </ThemedText>
+          </TouchableOpacity>
+
+          {showDatePicker && (
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={handleDateChange}
+              minimumDate={new Date()}
+            />
+          )}
+
+          {Platform.OS === 'ios' && showDatePicker && (
+            <TouchableOpacity
+              style={styles.datePickerConfirm}
+              onPress={() => setShowDatePicker(false)}
+            >
+              <ThemedText style={styles.datePickerConfirmText}>Done</ThemedText>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.formGroup}>
@@ -482,6 +529,32 @@ const styles = StyleSheet.create({
   },
   picker: {
     height: 50,
+  },
+  dateButton: {
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  datePickerConfirm: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  datePickerConfirmText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 16,
   },
   summarySection: {
     backgroundColor: '#F5F5F5',
