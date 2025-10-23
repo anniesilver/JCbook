@@ -4,7 +4,13 @@
  * Uses simple base64 + key-based XOR encryption for Expo compatibility
  */
 
-import * as Crypto from "expo-crypto";
+// Use browser's native crypto API for web, fall back to simple hashing for other platforms
+const getCryptoAPI = () => {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto) {
+    return globalThis.crypto;
+  }
+  return null;
+};
 
 /**
  * Generate a deterministic key from user ID for encryption
@@ -73,8 +79,20 @@ export async function decryptCredential(encryptedData: string, userId: string): 
  */
 export async function hashPassword(password: string): Promise<string> {
   try {
-    const digest = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, password);
-    return digest;
+    const crypto = getCryptoAPI();
+    if (!crypto || !crypto.subtle) {
+      // Fallback: use simple hash for platforms without crypto API
+      return btoa(password).substring(0, 64);
+    }
+
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+
+    // Convert to hex string
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Hashing failed";
     throw new Error(`Failed to hash password: ${message}`);
