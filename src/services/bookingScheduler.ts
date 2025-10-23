@@ -173,6 +173,11 @@ export function isScheduleTimeValid(scheduledExecuteTime: string): boolean {
  * Create a booking with all recurring instances (if applicable)
  * This is called when the user submits the booking form
  *
+ * LOGIC:
+ * - If booking is < 7 days away: Execute immediately in background (5 min from now)
+ * - If booking is >= 7 days away: Schedule for 8:00 AM UTC (7 days before target date)
+ * - Maximum booking window: 90 days in advance
+ *
  * @param userId - User ID
  * @param bookingInput - Booking form input
  * @returns Created booking or null if error
@@ -190,18 +195,48 @@ export async function createBookingWithSchedule(
       };
     }
 
-    // Calculate scheduled execute time (7 days before at 8:00 AM UTC)
-    const scheduledExecuteTime = calculateScheduledExecuteTimeUTC(
-      bookingInput.booking_date
-    );
+    // Validate booking is not too far in advance (90-day max window)
+    const [year, month, day] = bookingInput.booking_date.split("-").map(Number);
+    const bookingDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const maxDate = new Date(today);
+    maxDate.setDate(maxDate.getDate() + 90);
 
-    // Validate that execute time is valid
-    if (!isScheduleTimeValid(scheduledExecuteTime)) {
+    if (bookingDate > maxDate) {
       return {
         booking: null,
-        error:
-          "Booking date is too close (less than 7 days away or schedule time is in the past)",
+        error: "Booking date must be within 90 days from now",
       };
+    }
+
+    // Calculate days until booking
+    const daysUntilBooking = Math.floor(
+      (bookingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    // Determine execution time based on booking window
+    let scheduledExecuteTime: string;
+
+    if (daysUntilBooking < 7) {
+      // Booking is within 7 days: Execute immediately in background (5 minutes from now)
+      // The court slot is already available on GameTime now
+      const now = new Date();
+      scheduledExecuteTime = new Date(now.getTime() + 5 * 60 * 1000).toISOString();
+    } else {
+      // Booking is 7+ days away: Schedule for 8:00 AM UTC (7 days before target date)
+      // When this time arrives, the court slot will become available on GameTime
+      scheduledExecuteTime = calculateScheduledExecuteTimeUTC(
+        bookingInput.booking_date
+      );
+
+      // Validate that scheduled execute time is not in the past (edge case)
+      if (!isScheduleTimeValid(scheduledExecuteTime)) {
+        return {
+          booking: null,
+          error: "Invalid booking date - scheduled execution would be in the past",
+        };
+      }
     }
 
     // Create the main booking

@@ -4,8 +4,18 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { Platform } from "react-native";
 import { LoginCredentials, RegisterCredentials, User, APIError } from "../types/index";
-import * as SecureStore from "expo-secure-store";
+
+// Platform-specific secure storage
+let SecureStore: any = null;
+if (Platform.OS !== "web") {
+  try {
+    SecureStore = require("expo-secure-store");
+  } catch (e) {
+    console.warn("SecureStore not available on this platform");
+  }
+}
 
 // Initialize Supabase client
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -97,7 +107,15 @@ export async function login(credentials: LoginCredentials): Promise<{
     }
 
     const user = parseUser(data.user);
-    await SecureStore.setItemAsync("auth_token", data.session.access_token);
+
+    // Store token on native platforms
+    if (SecureStore && SecureStore.setItemAsync) {
+      try {
+        await SecureStore.setItemAsync("auth_token", data.session.access_token);
+      } catch (e) {
+        console.warn("Failed to store auth token:", e);
+      }
+    }
 
     return {
       user,
@@ -153,9 +171,13 @@ export async function register(credentials: RegisterCredentials): Promise<{
 
     const user = parseUser(data.user);
 
-    // Store session token if available
-    if (data.session) {
-      await SecureStore.setItemAsync("auth_token", data.session.access_token);
+    // Store session token if available (on native platforms)
+    if (data.session && SecureStore && SecureStore.setItemAsync) {
+      try {
+        await SecureStore.setItemAsync("auth_token", data.session.access_token);
+      } catch (e) {
+        console.warn("Failed to store auth token:", e);
+      }
     }
 
     return {
@@ -189,7 +211,14 @@ export async function logout(): Promise<APIError | null> {
       };
     }
 
-    await SecureStore.deleteItemAsync("auth_token");
+    // Delete token on native platforms
+    if (SecureStore && SecureStore.deleteItemAsync) {
+      try {
+        await SecureStore.deleteItemAsync("auth_token");
+      } catch (e) {
+        console.warn("Failed to delete auth token:", e);
+      }
+    }
     return null;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Logout failed";
@@ -232,8 +261,14 @@ export async function refreshSession(): Promise<{
     }
 
     const user = data.session.user ? parseUser(data.session.user) : null;
-    if (data.session.access_token) {
-      await SecureStore.setItemAsync("auth_token", data.session.access_token);
+
+    // Store token on native platforms
+    if (data.session.access_token && SecureStore && SecureStore.setItemAsync) {
+      try {
+        await SecureStore.setItemAsync("auth_token", data.session.access_token);
+      } catch (e) {
+        console.warn("Failed to store auth token:", e);
+      }
     }
 
     return {
