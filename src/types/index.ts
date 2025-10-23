@@ -92,3 +92,49 @@ export interface CredentialInput {
   username: string;
   password: string;
 }
+
+/**
+ * Booking recurrence pattern
+ */
+export enum BookingRecurrence {
+  ONCE = 'once',
+  WEEKLY = 'weekly',
+  MONTHLY = 'monthly',
+}
+
+/**
+ * Booking type representing a court booking
+ */
+export interface Booking {
+  id: string;
+  user_id: string;
+  court: string;
+  booking_date: string; // ISO format YYYY-MM-DD
+  booking_time: string; // HH:mm format
+  number_of_players: number;
+  recurrence: BookingRecurrence;
+  status: 'pending' | 'confirmed' | 'cancelled';
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Booking state for Zustand store
+ */
+export interface BookingState {
+  bookings: Booking[];
+  isLoading: boolean;
+  error: string | null;
+  currentBooking: Booking | null;
+}
+
+/**
+ * Booking input data (for UI forms)
+ */
+export interface BookingInput {
+  court: string;
+  booking_date: string;
+  booking_time: string;
+  number_of_players: number;
+  recurrence: BookingRecurrence;
+}
