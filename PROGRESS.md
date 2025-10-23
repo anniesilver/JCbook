@@ -1,10 +1,69 @@
 # JC Court Booking Tool - Development Progress
 
 ## Current Status
-- **Developer:** Fixed build issues, path errors, and dependency problems
-- **Tester:** Completed testing phase - 11/12 tests passing (91.7% success rate)
-- **Status:** ✅ Auth feature functionally complete and ready for backend integration
+- **Developer:** Booking feature in progress - Service layer, scheduler, and store complete
+- **Tester:** Awaiting booking feature completion
+- **Status:** 🔄 Booking feature backend services implemented, awaiting frontend integration and Puppeteer automation
 - **Last Updated:** 2025-10-23
+
+---
+
+## Feature: Booking (`dev/booking-form`)
+**Status:** 🔄 IN PROGRESS - Service Layer Complete
+**Developer Branch:** `dev/booking-form`
+**Form UI Completed:** 2025-10-23
+**Service Layer Completed:** 2025-10-23
+
+### Components Completed:
+1. ✅ **BookingFormScreen** - Updated UI with new fields:
+   - Preferred court dropdown (1-6)
+   - "Accept any court" checkbox for fallback option
+   - Booking type radio buttons (Singles/Doubles)
+   - Duration selector (1 hr / 1.5 hr only)
+   - Date and time pickers
+   - Recurrence pattern selector
+
+2. ✅ **Database Schema** (BOOKINGS_MIGRATION.sql):
+   - Created `bookings` table with all required fields
+   - Created `recurring_booking_instances` table for tracking recurrence
+   - Added indexes on user_id, scheduled_execute_time, auto_book_status
+   - Set up Row Level Security (RLS) policies
+
+3. ✅ **Booking Service** (bookingService.ts):
+   - createBooking() - Create new booking request
+   - getUserBookings() - Fetch user's bookings
+   - getBookingById() - Get single booking
+   - updateBookingStatus() - Update status (pending/confirmed/cancelled)
+   - cancelBooking() - Cancel a booking
+   - deleteBooking() - Delete a booking
+   - getPendingBookingsToExecute() - Query for scheduler
+   - updateBookingWithGameTimeConfirmation() - Update after successful booking
+   - updateBookingWithError() - Track failed attempts
+
+4. ✅ **Booking Scheduler** (bookingScheduler.ts):
+   - calculateScheduledExecuteTime() - Calculate 7-day window (8:00 AM UTC on 7-days-before date)
+   - generateRecurringBookingDates() - Create dates for recurring bookings
+   - createBookingWithSchedule() - Main entry point with validation
+   - isDateInFuture() - Validate future dates
+   - isScheduleTimeValid() - Validate schedule time
+   - getBookingStatistics() - Display booking info (days until booking/execution)
+
+5. ✅ **Booking Store** (bookingStore.ts):
+   - loadUserBookings() - Load all user bookings
+   - createBooking() - Create new booking with scheduler
+   - updateBookingStatus() - Update status
+   - cancelBooking() - Cancel booking
+   - deleteBooking() - Delete booking
+   - getUpcomingBookings() - Filter pending bookings
+   - getConfirmedBookings() - Filter confirmed bookings
+
+### Remaining Tasks:
+- [ ] Build Puppeteer automation service for GameTime (gameTimeAutomation.ts)
+- [ ] Create API endpoints for backend integration
+- [ ] Connect BookingFormScreen to bookingStore.createBooking()
+- [ ] Build scheduler service to execute pending bookings at 8:00 AM
+- [ ] Integrate with server-side cron for automated execution
+- [ ] Test end-to-end workflow
 
 ---
 
