@@ -41,8 +41,8 @@ export function useBooking() {
    * Load user's bookings
    */
   const getBookings = useCallback(
-    async (userId: string) => {
-      await loadUserBookings(userId);
+    async () => {
+      await loadUserBookings();
     },
     [loadUserBookings]
   );
