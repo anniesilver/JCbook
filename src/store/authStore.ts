@@ -81,6 +81,7 @@ export const useAuthStore = create<AuthStore>()(
         set((state) => {
           state.error = "Email and password are required";
         });
+        console.warn("[AuthStore] Login validation failed: missing credentials");
         return;
       }
 
@@ -90,9 +91,11 @@ export const useAuthStore = create<AuthStore>()(
       });
 
       try {
+        console.log(`[AuthStore] Attempting login for ${credentials.email}`);
         const { user, session, error } = await authService.login(credentials);
 
         if (error) {
+          console.error(`[AuthStore] Login returned error: ${error.message}`);
           set((state) => {
             state.error = error.message;
             state.isLoading = false;
@@ -100,6 +103,7 @@ export const useAuthStore = create<AuthStore>()(
           return;
         }
 
+        console.log(`[AuthStore] Login successful, setting user and session`);
         set((state) => {
           state.user = user;
           state.session = session;
@@ -107,6 +111,7 @@ export const useAuthStore = create<AuthStore>()(
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Login failed";
+        console.error(`[AuthStore] Login threw exception: ${message}`);
         set((state) => {
           state.error = message;
           state.isLoading = false;
