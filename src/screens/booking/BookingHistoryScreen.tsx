@@ -18,7 +18,7 @@ import { useBookingStore } from '../../store/bookingStore';
 import { BookingCard } from '../../components/booking/BookingCard';
 import { Booking } from '../../types/index';
 
-type FilterType = 'all' | 'pending' | 'confirmed' | 'failed' | 'processing';
+type FilterType = 'all' | 'pending' | 'success' | 'failed' | 'in_progress';
 
 interface BookingHistoryScreenProps {
   onClose?: () => void;
@@ -55,10 +55,10 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
       } else {
         // Sort by status priority
         const statusPriority: Record<string, number> = {
-          processing: 1,
+          in_progress: 1,
           pending: 2,
           failed: 3,
-          confirmed: 4,
+          success: 4,
         };
         return (statusPriority[a.auto_book_status] || 5) -
           (statusPriority[b.auto_book_status] || 5);
@@ -110,8 +110,8 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
     return {
       total: bookings.length,
       pending: bookings.filter((b) => b.auto_book_status === 'pending').length,
-      processing: bookings.filter((b) => b.auto_book_status === 'processing').length,
-      confirmed: bookings.filter((b) => b.auto_book_status === 'confirmed').length,
+      in_progress: bookings.filter((b) => b.auto_book_status === 'in_progress').length,
+      success: bookings.filter((b) => b.auto_book_status === 'success').length,
       failed: bookings.filter((b) => b.auto_book_status === 'failed').length,
     };
   };
