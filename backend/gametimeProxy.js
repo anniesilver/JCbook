@@ -79,6 +79,8 @@ app.post('/api/gametime/login', async (req, res) => {
     );
 
     console.log('[GameTimeProxy] Login successful');
+    console.log('[GameTimeProxy] Response status:', response.status);
+    console.log('[GameTimeProxy] Set-Cookie headers:', response.headers['set-cookie']);
 
     return res.json({
       success: true,
@@ -117,6 +119,7 @@ app.get('/api/gametime/availability/:date', async (req, res) => {
     );
 
     console.log('[GameTimeProxy] Court data received');
+    console.log('[GameTimeProxy] Response status:', response.status);
 
     return res.json(response.data);
   } catch (error) {
