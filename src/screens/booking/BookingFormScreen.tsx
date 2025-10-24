@@ -505,15 +505,12 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
         <View style={styles.formGroup}>
           <ThemedText style={styles.label}>Time</ThemedText>
           <View style={styles.pickerContainer}>
-            <Picker
+            <CustomPicker
               selectedValue={formData.booking_time}
               onValueChange={(value) => setFormData({ ...formData, booking_time: value })}
+              items={TIME_SLOTS.map((time) => ({ value: time, label: time }))}
               style={styles.picker}
-            >
-              {TIME_SLOTS.map((time) => (
-                <Picker.Item key={time} label={time} value={time} />
-              ))}
-            </Picker>
+            />
           </View>
         </View>
 
@@ -536,30 +533,24 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
         <View style={styles.formGroup}>
           <ThemedText style={styles.label}>Duration</ThemedText>
           <View style={styles.pickerContainer}>
-            <Picker
+            <CustomPicker
               selectedValue={formData.duration_hours}
               onValueChange={(value) => setFormData({ ...formData, duration_hours: value })}
+              items={DURATION_OPTIONS.map((duration) => ({ value: duration, label: `${duration} hour${duration > 1 ? 's' : ''}` }))}
               style={styles.picker}
-            >
-              {DURATION_OPTIONS.map((duration) => (
-                <Picker.Item key={duration} label={`${duration} hour${duration > 1 ? 's' : ''}`} value={duration} />
-              ))}
-            </Picker>
+            />
           </View>
         </View>
 
         <View style={styles.formGroup}>
           <ThemedText style={styles.label}>Recurrence Pattern</ThemedText>
           <View style={styles.pickerContainer}>
-            <Picker
+            <CustomPicker
               selectedValue={formData.recurrence}
               onValueChange={(value) => setFormData({ ...formData, recurrence: value })}
+              items={RECURRENCE_OPTIONS}
               style={styles.picker}
-            >
-              {RECURRENCE_OPTIONS.map((option) => (
-                <Picker.Item key={option.value} label={option.label} value={option.value} />
-              ))}
-            </Picker>
+            />
           </View>
         </View>
 
