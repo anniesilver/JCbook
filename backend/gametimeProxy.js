@@ -67,11 +67,12 @@ app.post('/api/gametime/login', async (req, res) => {
     console.log(`[GameTimeProxy] Attempting login for user: ${username}`);
 
     const response = await gametimeClient.post(
-      '/auth',
+      '/auth/json-index',
       `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
       {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json, text/plain, */*',
         },
       }
     );
