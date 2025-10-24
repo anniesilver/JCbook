@@ -123,54 +123,42 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
         )}
       </View>
 
-      {/* Statistics */}
-      {bookings.length > 0 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.total}</Text>
-            <Text style={styles.statLabel}>Total</Text>
-          </View>
-          <View style={[styles.statCard, styles.pendingCard]}>
-            <Text style={styles.statNumber}>{stats.pending}</Text>
-            <Text style={styles.statLabel}>Pending</Text>
-          </View>
-          <View style={[styles.statCard, styles.processingCard]}>
-            <Text style={styles.statNumber}>{stats.processing}</Text>
-            <Text style={styles.statLabel}>Processing</Text>
-          </View>
-          <View style={[styles.statCard, styles.confirmedCard]}>
-            <Text style={styles.statNumber}>{stats.confirmed}</Text>
-            <Text style={styles.statLabel}>Confirmed</Text>
-          </View>
-          <View style={[styles.statCard, styles.failedCard]}>
-            <Text style={styles.statNumber}>{stats.failed}</Text>
-            <Text style={styles.statLabel}>Failed</Text>
-          </View>
-        </ScrollView>
-      )}
 
       {/* Filter and Sort Options */}
       <View style={styles.controlsContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterTabs}>
-          {(['all', 'pending', 'confirmed', 'failed'] as FilterType[]).map((f) => (
-            <TouchableOpacity
-              key={f}
-              style={[
-                styles.filterTab,
-                filter === f && styles.filterTabActive,
-              ]}
-              onPress={() => setFilter(f)}
-            >
-              <Text
+          {(['all', 'pending', 'confirmed', 'failed'] as FilterType[]).map((f) => {
+            let count = bookings.length;
+            if (f === 'all') {
+              count = bookings.length;
+            } else if (f === 'pending') {
+              count = stats.pending;
+            } else if (f === 'confirmed') {
+              count = stats.confirmed;
+            } else if (f === 'failed') {
+              count = stats.failed;
+            }
+
+            return (
+              <TouchableOpacity
+                key={f}
                 style={[
-                  styles.filterTabText,
-                  filter === f && styles.filterTabTextActive,
+                  styles.filterTab,
+                  filter === f && styles.filterTabActive,
                 ]}
+                onPress={() => setFilter(f)}
               >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.filterTabText,
+                    filter === f && styles.filterTabTextActive,
+                  ]}
+                >
+                  {f.charAt(0).toUpperCase() + f.slice(1)} ({count})
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
 
         <View style={styles.sortContainer}>
@@ -287,43 +275,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: '#999',
     fontWeight: 'bold',
-  },
-  statsContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFF',
-  },
-  statCard: {
-    marginRight: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#F5F5F5',
-    minWidth: 70,
-    alignItems: 'center',
-  },
-  pendingCard: {
-    backgroundColor: '#FFF3CD',
-  },
-  processingCard: {
-    backgroundColor: '#D6E9FF',
-  },
-  confirmedCard: {
-    backgroundColor: '#D4EDDA',
-  },
-  failedCard: {
-    backgroundColor: '#F8D7DA',
-  },
-  statNumber: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F1F1F',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '500',
   },
   controlsContainer: {
     paddingVertical: 12,
