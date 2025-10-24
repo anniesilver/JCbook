@@ -234,7 +234,7 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
                 // Could show a detailed view modal here
                 Alert.alert(
                   'Booking Details',
-                  `Court: ${item.court}\nDate: ${item.booking_date}\nTime: ${item.booking_time}\nType: ${item.booking_type}\nDuration: ${item.duration}\nStatus: ${item.auto_book_status}`
+                  `Court: ${item.preferred_court}\nDate: ${item.booking_date}\nTime: ${item.booking_time}\nType: ${item.booking_type}\nDuration: ${item.duration_hours} hour(s)\nStatus: ${item.auto_book_status}`
                 );
               }}
             />

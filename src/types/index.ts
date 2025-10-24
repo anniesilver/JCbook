@@ -124,7 +124,6 @@ export type AutoBookStatus = 'pending' | 'in_progress' | 'success' | 'failed';
 export interface Booking {
   id: string;
   user_id: string;
-  court: string;
   preferred_court: number; // 1-6
   accept_any_court: boolean;
   booking_date: string; // ISO format YYYY-MM-DD
