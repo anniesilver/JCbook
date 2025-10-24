@@ -96,12 +96,7 @@ export interface CredentialInput {
 /**
  * Booking recurrence pattern
  */
-export enum BookingRecurrence {
-  ONCE = 'once',
-  WEEKLY = 'weekly',
-  BI_WEEKLY = 'bi-weekly',
-  MONTHLY = 'monthly',
-}
+export type BookingRecurrence = 'once' | 'weekly' | 'bi-weekly' | 'monthly';
 
 /**
  * Booking type
