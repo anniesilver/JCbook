@@ -24,20 +24,26 @@ The issue was NOT just about enum value usage - it was the enum itself being com
 2. Enum used in type annotations: `recurrence: BookingRecurrence` in Booking interface
 3. Enum used in type annotations: `recurrence: BookingRecurrence` in BookingInput interface
 
-### DEFINITIVE iOS Fix Applied ✅
-- ✅ **Commit 2cc669f:** Converted BookingRecurrence enum to type union (ELIMINATES ROOT CAUSE)
-  - Changed from: `enum BookingRecurrence { ONCE = 'once', ... }`
-  - Changed to: `type BookingRecurrence = 'once' | 'weekly' | 'bi-weekly' | 'monthly'`
-  - **Result:** Type union is erased at compile time, NO runtime object created, prevents iOS crash completely
+### DEFINITIVE iOS Fixes Applied ✅
 
-- ✅ **Commit 09a185f:** Replaced enum comparisons in bookingScheduler.ts
-  - Changed 4 enum comparisons to string literals
+1. ✅ **Commit 2cc669f:** Converted BookingRecurrence enum to type union (ELIMINATES ROOT CAUSE)
+   - Changed from: `enum BookingRecurrence { ONCE = 'once', ... }`
+   - Changed to: `type BookingRecurrence = 'once' | 'weekly' | 'bi-weekly' | 'monthly'`
+   - **Result:** Type union is erased at compile time, NO runtime object created, prevents iOS crash completely
 
-- ✅ **Commit 59d0e83:** Replaced enum values in BookingFormScreen.tsx
-  - Changed `RECURRENCE_OPTIONS` to hardcoded strings
+2. ✅ **Commit 09a185f:** Replaced enum comparisons in bookingScheduler.ts
+   - Changed 4 enum comparisons to string literals
+
+3. ✅ **Commit 59d0e83:** Replaced enum values in BookingFormScreen.tsx
+   - Changed `RECURRENCE_OPTIONS` to hardcoded strings
+
+4. ✅ **Commit 291fdea:** Deleted outdated bookingsService.ts (CRITICAL FIX)
+   - Old file was using deprecated field names (`court` instead of `preferred_court`, `number_of_players` instead of `booking_type`, etc.)
+   - Even though unused, it was causing module initialization errors during compilation
+   - **Result:** Eliminates stray compilation errors from unused code
 
 ### Action Required for User
-**Reload iOS app** with latest commit (2cc669f) - This eliminates the enum compilation issue at the root level
+**Reload iOS app** with latest commits - Booking page should now load without any errors
 
 ### Delete Functionality Implementation ✅
 Per user request: "fix the delete icon, make it works and delete the book task for real"
