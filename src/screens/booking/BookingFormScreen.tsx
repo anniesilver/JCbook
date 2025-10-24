@@ -12,7 +12,6 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
-  Picker,
   CheckBox,
   Platform,
 } from 'react-native';
@@ -22,6 +21,106 @@ import { ThemedView } from '../../components/themed-view';
 import { useAuth } from '../../hooks/useAuth';
 import { useBooking } from '../../hooks/useBooking';
 import { BookingRecurrence, BookingInput, Duration } from '../../types/index';
+
+// Custom Picker component for both web and mobile
+interface PickerItem {
+  value: any;
+  label: string;
+}
+
+interface CustomPickerProps {
+  selectedValue: any;
+  onValueChange: (value: any) => void;
+  children?: React.ReactNode;
+  items?: PickerItem[];
+  style?: any;
+}
+
+const CustomPicker: React.FC<CustomPickerProps> = ({
+  selectedValue,
+  onValueChange,
+  items = [],
+  style,
+}) => {
+  if (Platform.OS === 'web') {
+    return (
+      <select
+        value={selectedValue}
+        onChange={(e) => onValueChange(e.target.value === '' ? 0 : parseInt(e.target.value, 10))}
+        style={{
+          borderWidth: 1,
+          borderColor: '#DDD',
+          borderRadius: 8,
+          paddingLeft: 12,
+          paddingRight: 12,
+          paddingTop: 10,
+          paddingBottom: 10,
+          fontSize: 16,
+          color: '#333',
+          backgroundColor: '#FFF',
+          width: '100%',
+          boxSizing: 'border-box',
+          ...style,
+        } as React.CSSProperties}
+      >
+        {items.map((item) => (
+          <option key={item.value} value={item.value}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  // For iOS/Android, show a modal-based picker
+  const [showPicker, setShowPicker] = useState(false);
+  const selectedLabel = items.find((item) => item.value === selectedValue)?.label || 'Select...';
+
+  return (
+    <View>
+      <TouchableOpacity
+        style={[styles.pickerButton, style]}
+        onPress={() => setShowPicker(true)}
+      >
+        <ThemedText style={styles.pickerButtonText}>{selectedLabel}</ThemedText>
+      </TouchableOpacity>
+
+      {showPicker && (
+        <View style={styles.pickerModal}>
+          <View style={styles.pickerHeader}>
+            <TouchableOpacity onPress={() => setShowPicker(false)}>
+              <ThemedText style={styles.pickerDone}>Done</ThemedText>
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.pickerOptions}>
+            {items.map((item) => (
+              <TouchableOpacity
+                key={item.value}
+                style={[
+                  styles.pickerOption,
+                  selectedValue === item.value && styles.pickerOptionSelected,
+                ]}
+                onPress={() => {
+                  onValueChange(item.value);
+                  setShowPicker(false);
+                }}
+              >
+                <ThemedText
+                  style={[
+                    styles.pickerOptionText,
+                    selectedValue === item.value && styles.pickerOptionTextSelected,
+                  ]}
+                >
+                  {item.label}
+                </ThemedText>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+};
 
 // Web-only date input component
 const WebDateInput: React.FC<{
@@ -335,15 +434,12 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
         <View style={styles.formGroup}>
           <ThemedText style={styles.label}>Preferred Court</ThemedText>
           <View style={styles.pickerContainer}>
-            <Picker
+            <CustomPicker
               selectedValue={formData.preferred_court}
               onValueChange={(value) => setFormData({ ...formData, preferred_court: value })}
+              items={COURTS}
               style={styles.picker}
-            >
-              {COURTS.map((court) => (
-                <Picker.Item key={court.value} label={court.label} value={court.value} />
-              ))}
-            </Picker>
+            />
           </View>
           <View style={styles.checkboxRow}>
             <CheckBox
@@ -601,6 +697,63 @@ const styles = StyleSheet.create({
   },
   picker: {
     height: 50,
+  },
+  pickerButton: {
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+  },
+  pickerButtonText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  pickerModal: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    maxHeight: 400,
+    zIndex: 1000,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
+  },
+  pickerDone: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  pickerOptions: {
+    flex: 1,
+  },
+  pickerOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
+  },
+  pickerOptionSelected: {
+    backgroundColor: '#E8F4FF',
+  },
+  pickerOptionText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  pickerOptionTextSelected: {
+    color: '#007AFF',
+    fontWeight: '600',
   },
   dateButton: {
     borderWidth: 1,
