@@ -80,12 +80,15 @@ export async function login(credentials: LoginCredentials): Promise<{
   error: APIError | null;
 }> {
   try {
+    console.log(`[AuthService] Login attempt for email: ${credentials.email}`);
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email: credentials.email,
       password: credentials.password,
     });
 
     if (error) {
+      console.error(`[AuthService] Login failed - Error:`, error.message, `Code: ${error.code}`);
       return {
         user: null,
         session: null,
@@ -97,6 +100,8 @@ export async function login(credentials: LoginCredentials): Promise<{
     }
 
     if (!data.session || !data.user) {
+      console.error(`[AuthService] Login failed - No session or user returned`);
+      console.log(`[AuthService] Data returned:`, { hasSession: !!data.session, hasUser: !!data.user });
       return {
         user: null,
         session: null,
@@ -106,6 +111,7 @@ export async function login(credentials: LoginCredentials): Promise<{
       };
     }
 
+    console.log(`[AuthService] Login successful for user: ${data.user.email}`);
     const user = parseUser(data.user);
 
     // Store token on native platforms
