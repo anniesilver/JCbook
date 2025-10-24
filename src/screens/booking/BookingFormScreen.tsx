@@ -22,6 +22,138 @@ import { useAuth } from '../../hooks/useAuth';
 import { useBooking } from '../../hooks/useBooking';
 import { BookingRecurrence, BookingInput, Duration } from '../../types/index';
 
+// Custom Picker component for both web and mobile
+interface PickerItem {
+  value: any;
+  label: string;
+}
+
+const CustomPicker: React.FC<{
+  selectedValue: any;
+  onValueChange: (value: any) => void;
+  items?: PickerItem[];
+  style?: any;
+}> = ({ selectedValue, onValueChange, items = [], style }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <select
+        value={selectedValue}
+        onChange={(e) => onValueChange(e.target.value === '' ? 0 : parseInt(e.target.value, 10))}
+        style={{
+          borderWidth: 1,
+          borderColor: '#DDD',
+          borderRadius: 8,
+          paddingLeft: 12,
+          paddingRight: 12,
+          paddingTop: 10,
+          paddingBottom: 10,
+          fontSize: 16,
+          color: '#333',
+          backgroundColor: '#FFF',
+          width: '100%',
+          boxSizing: 'border-box',
+          ...style,
+        } as React.CSSProperties}
+      >
+        {items.map((item) => (
+          <option key={item.value} value={item.value}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  // For iOS/Android, show a modal-based picker
+  const [showPicker, setShowPicker] = useState(false);
+  const selectedLabel = items.find((item) => item.value === selectedValue)?.label || 'Select...';
+
+  return (
+    <View>
+      <TouchableOpacity
+        style={{
+          borderWidth: 1,
+          borderColor: '#DDD',
+          borderRadius: 8,
+          paddingHorizontal: 12,
+          paddingVertical: 12,
+          backgroundColor: '#FFF',
+          justifyContent: 'center',
+          ...style,
+        }}
+        onPress={() => setShowPicker(true)}
+      >
+        <ThemedText style={{ fontSize: 16, color: '#333' }}>
+          {selectedLabel}
+        </ThemedText>
+      </TouchableOpacity>
+
+      {showPicker && (
+        <View
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: '#FFF',
+            borderTopLeftRadius: 12,
+            borderTopRightRadius: 12,
+            maxHeight: 400,
+            zIndex: 1000,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'flex-end',
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              borderBottomWidth: 1,
+              borderBottomColor: '#EEE',
+            }}
+          >
+            <TouchableOpacity onPress={() => setShowPicker(false)}>
+              <ThemedText style={{ color: '#007AFF', fontSize: 16, fontWeight: '600' }}>
+                Done
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            style={{ flex: 1 }}
+          >
+            {items.map((item) => (
+              <TouchableOpacity
+                key={item.value}
+                style={{
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#EEE',
+                  backgroundColor: selectedValue === item.value ? '#E8F4FF' : '#FFF',
+                }}
+                onPress={() => {
+                  onValueChange(item.value);
+                  setShowPicker(false);
+                }}
+              >
+                <ThemedText
+                  style={{
+                    fontSize: 16,
+                    color: selectedValue === item.value ? '#007AFF' : '#333',
+                    fontWeight: selectedValue === item.value ? '600' : '400',
+                  }}
+                >
+                  {item.label}
+                </ThemedText>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+};
+
 // Web-only date input component
 const WebDateInput: React.FC<{
   value: string;
@@ -194,106 +326,6 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
   // Date picker state
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date(getTodayDateString()));
-
-  // Custom Picker component for both web and mobile
-  interface PickerItem {
-    value: any;
-    label: string;
-  }
-
-  interface CustomPickerProps {
-    selectedValue: any;
-    onValueChange: (value: any) => void;
-    children?: React.ReactNode;
-    items?: PickerItem[];
-    style?: any;
-  }
-
-  const CustomPicker: React.FC<CustomPickerProps> = ({
-    selectedValue,
-    onValueChange,
-    items = [],
-    style,
-  }) => {
-    if (Platform.OS === 'web') {
-      return (
-        <select
-          value={selectedValue}
-          onChange={(e) => onValueChange(e.target.value === '' ? 0 : parseInt(e.target.value, 10))}
-          style={{
-            borderWidth: 1,
-            borderColor: '#DDD',
-            borderRadius: 8,
-            paddingLeft: 12,
-            paddingRight: 12,
-            paddingTop: 10,
-            paddingBottom: 10,
-            fontSize: 16,
-            color: '#333',
-            backgroundColor: '#FFF',
-            width: '100%',
-            boxSizing: 'border-box',
-            ...style,
-          } as React.CSSProperties}
-        >
-          {items.map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-      );
-    }
-
-    // For iOS/Android, show a modal-based picker
-    const [showPicker, setShowPicker] = useState(false);
-    const selectedLabel = items.find((item) => item.value === selectedValue)?.label || 'Select...';
-
-    return (
-      <View>
-        <TouchableOpacity
-          style={[styles.pickerButton, style]}
-          onPress={() => setShowPicker(true)}
-        >
-          <ThemedText style={styles.pickerButtonText}>{selectedLabel}</ThemedText>
-        </TouchableOpacity>
-
-        {showPicker && (
-          <View style={styles.pickerModal}>
-            <View style={styles.pickerHeader}>
-              <TouchableOpacity onPress={() => setShowPicker(false)}>
-                <ThemedText style={styles.pickerDone}>Done</ThemedText>
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.pickerOptions}>
-              {items.map((item) => (
-                <TouchableOpacity
-                  key={item.value}
-                  style={[
-                    styles.pickerOption,
-                    selectedValue === item.value && styles.pickerOptionSelected,
-                  ]}
-                  onPress={() => {
-                    onValueChange(item.value);
-                    setShowPicker(false);
-                  }}
-                >
-                  <ThemedText
-                    style={[
-                      styles.pickerOptionText,
-                      selectedValue === item.value && styles.pickerOptionTextSelected,
-                    ]}
-                  >
-                    {item.label}
-                  </ThemedText>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-      </View>
-    );
-  };
 
   /**
    * Clear errors when component mounts
