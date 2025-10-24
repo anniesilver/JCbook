@@ -200,7 +200,8 @@ export const useBookingStore = create<BookingStore>()(
           set((state) => {
             const index = state.bookings.findIndex((b) => b.id === bookingId);
             if (index !== -1) {
-              state.bookings[index] = booking;
+              // Use Object.assign to mutate the existing object (works with immer)
+              Object.assign(state.bookings[index], booking);
             }
           });
         }
@@ -232,7 +233,8 @@ export const useBookingStore = create<BookingStore>()(
           set((state) => {
             const index = state.bookings.findIndex((b) => b.id === bookingId);
             if (index !== -1) {
-              state.bookings[index] = booking;
+              // Use Object.assign to mutate the existing object (works with immer)
+              Object.assign(state.bookings[index], booking);
               state.bookings[index].auto_book_status = 'pending';
               state.bookings[index].error_message = null;
             }
@@ -288,7 +290,11 @@ export const useBookingStore = create<BookingStore>()(
 
         if (success) {
           set((state) => {
-            state.bookings = state.bookings.filter((b) => b.id !== bookingId);
+            // Find and remove the booking (don't reassign the array)
+            const index = state.bookings.findIndex((b) => b.id === bookingId);
+            if (index !== -1) {
+              state.bookings.splice(index, 1);
+            }
           });
         }
       } catch (err) {
