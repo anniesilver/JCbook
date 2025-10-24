@@ -84,7 +84,7 @@ export function generateRecurringBookingDates(
   endDate?: string,
   maxInstances: number = 52 // Default: 1 year of weekly bookings
 ): string[] {
-  if (recurrence === BookingRecurrence.ONCE) {
+  if (recurrence === 'once') {
     return [startDate];
   }
 
@@ -94,9 +94,9 @@ export function generateRecurringBookingDates(
 
   // Determine recurrence interval in days
   let intervalDays = 7; // Default to weekly
-  if (recurrence === BookingRecurrence.BI_WEEKLY) {
+  if (recurrence === 'bi-weekly') {
     intervalDays = 14;
-  } else if (recurrence === BookingRecurrence.MONTHLY) {
+  } else if (recurrence === 'monthly') {
     intervalDays = 30; // Approximate; will adjust for actual months
   }
 
@@ -112,7 +112,7 @@ export function generateRecurringBookingDates(
 
   // Generate recurring dates
   while (dates.length < maxInstances) {
-    if (recurrence === BookingRecurrence.MONTHLY) {
+    if (recurrence === 'monthly') {
       // For monthly, add one month instead of 30 days
       currentDate.setMonth(currentDate.getMonth() + 1);
     } else {
