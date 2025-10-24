@@ -30,6 +30,7 @@ export default function RootLayout() {
   const segments = useSegments();
   const router = useRouter();
   const routeCheckRef = useRef(false);
+  const navigationReadyRef = useRef(false);
 
   // Start booking executor service when authenticated
   useBookingExecutor();
@@ -43,6 +44,14 @@ export default function RootLayout() {
     initializeAuthListener();
     // Then check for existing session
     initializeAuth();
+
+    // Mark navigation as ready after a brief delay to let the Stack mount
+    const timer = setTimeout(() => {
+      navigationReadyRef.current = true;
+      console.log('[RootLayout] Navigation ready');
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [initializeAuth]);
 
   /**
@@ -51,6 +60,11 @@ export default function RootLayout() {
    */
   useEffect(() => {
     if (isLoading) {
+      return;
+    }
+
+    // Wait for navigation to be ready before routing
+    if (!navigationReadyRef.current) {
       return;
     }
 
@@ -72,19 +86,21 @@ export default function RootLayout() {
       // User is not authenticated but in tabs group, redirect to login
       routeCheckRef.current = true;
       try {
+        console.log('[RootLayout] Redirecting to login (not authenticated)');
         router.replace('/(auth)/login');
       } catch (error) {
         // Ignore navigation errors during initialization
-        console.error('Navigation error (expected during init):', error);
+        console.warn('[RootLayout] Navigation error (suppressed):', (error as Error).message);
       }
     } else if (isAuthenticated && inAuthGroup) {
       // User is authenticated but in auth group, redirect to app
       routeCheckRef.current = true;
       try {
+        console.log('[RootLayout] Redirecting to tabs (authenticated)');
         router.replace('/(tabs)');
       } catch (error) {
         // Ignore navigation errors during initialization
-        console.error('Navigation error (expected during init):', error);
+        console.warn('[RootLayout] Navigation error (suppressed):', (error as Error).message);
       }
     }
   }, [isAuthenticated, isLoading, segments, router]);
