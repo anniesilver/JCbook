@@ -4,8 +4,12 @@
  *
  * This service runs in the background and:
  * 1. Checks for bookings ready to execute (scheduled_execute_time <= now)
- * 2. Attempts to book on GameTime.net (via backend API)
+ * 2. Attempts to book on GameTime.net using real API integration
  * 3. Updates booking status to "confirmed" or "failed"
+ *
+ * NOTE: As of 2025-10-24, the GameTime API booking submission endpoint
+ * has not yet been discovered. This service is ready to use the real API
+ * once the endpoint is identified. See GAMETIME_API_RESEARCH.md for details.
  *
  * In production, this would run as a cron job on a backend server.
  * For now, it runs on the client when the app is active.
@@ -13,6 +17,7 @@
 
 import * as bookingService from './bookingService';
 import * as credentialsService from './credentialsService';
+import { gametimeApi } from './gametimeApiService';
 import { Booking } from '../types/index';
 
 export interface BookingExecutionResult {
@@ -24,67 +29,97 @@ export interface BookingExecutionResult {
 }
 
 /**
- * Execute a single booking
- * This would call a backend API that uses Puppeteer to book on GameTime
+ * Execute a single booking using real GameTime API
+ * @param booking Booking to execute
+ * @param username GameTime username
+ * @param gametimePassword GameTime password
+ * @returns Booking execution result with confirmation ID if successful
  */
 export async function executeBooking(
   booking: Booking,
+  username: string,
   gametimePassword: string
 ): Promise<BookingExecutionResult> {
   try {
     console.log(`[BookingExecutor] Executing booking ${booking.id} for ${booking.booking_date} at ${booking.booking_time}`);
 
-    // In production, this would call a backend API:
-    // const response = await fetch('/api/execute-booking', {
-    //   method: 'POST',
-    //   body: JSON.stringify({
-    //     bookingId: booking.id,
-    //     username: booking.user_email,
-    //     password: gametimePassword,
-    //     preferredCourt: booking.preferred_court,
-    //     acceptAnyCourtIfPreferred: booking.accept_any_court,
-    //     bookingDate: booking.booking_date,
-    //     bookingTime: booking.booking_time,
-    //     bookingType: booking.booking_type,
-    //     durationHours: booking.duration_hours,
-    //   })
-    // });
+    // Step 1: Login to GameTime
+    console.log('[BookingExecutor] Authenticating with GameTime...');
+    const loginSuccess = await gametimeApi.login(username, gametimePassword);
 
-    // For now, simulate the execution
-    const simulatedResult = simulateBookingExecution(booking);
-
-    if (simulatedResult.success) {
-      // Update booking with success
-      await bookingService.updateBookingWithGameTimeConfirmation(
-        booking.id,
-        simulatedResult.confirmationId || `CONF-${booking.id}`,
-        simulatedResult.actualCourt || booking.preferred_court
-      );
-
-      return {
-        bookingId: booking.id,
-        success: true,
-        confirmationId: simulatedResult.confirmationId,
-        actualCourt: simulatedResult.actualCourt,
-      };
-    } else {
-      // Update booking with error
-      const retryCount = (booking.retry_count || 0) + 1;
-      await bookingService.updateBookingWithError(
-        booking.id,
-        simulatedResult.error || 'Booking failed',
-        retryCount
-      );
-
-      return {
-        bookingId: booking.id,
-        success: false,
-        error: simulatedResult.error,
-      };
+    if (!loginSuccess) {
+      throw new Error('Failed to authenticate with GameTime');
     }
+
+    // Step 2: Check court availability
+    console.log(`[BookingExecutor] Checking availability for ${booking.booking_date}...`);
+    const courtData = await gametimeApi.getCourtAvailability(booking.booking_date);
+
+    if (!courtData) {
+      throw new Error('Failed to fetch court availability');
+    }
+
+    // Step 3: Verify preferred court is available at requested time
+    const availableSlots = gametimeApi.parseAvailableSlots(courtData, booking.booking_date);
+    const durationMinutes = Math.round(booking.duration_hours * 60);
+
+    // Find matching slot
+    const matchingSlot = availableSlots.find(
+      slot =>
+        (slot.courtNumber === booking.preferred_court || booking.accept_any_court) &&
+        slot.startTime === booking.booking_time &&
+        slot.durationMinutes >= durationMinutes
+    );
+
+    if (!matchingSlot && !booking.accept_any_court) {
+      throw new Error(
+        `Preferred court ${booking.preferred_court} not available at ${booking.booking_time} for ${durationMinutes} minutes`
+      );
+    }
+
+    const courtToBook = matchingSlot ? matchingSlot.courtNumber : booking.preferred_court;
+
+    // Step 4: Submit booking to GameTime
+    console.log(`[BookingExecutor] Submitting booking for court ${courtToBook}...`);
+    const bookingResult = await gametimeApi.submitBooking(
+      courtToBook,
+      booking.booking_date,
+      booking.booking_time,
+      durationMinutes,
+      booking.booking_type === 'singles' ? 2 : 4  // Player count based on booking type
+    );
+
+    if (!bookingResult) {
+      throw new Error('Booking submission failed');
+    }
+
+    // Step 5: Update database with confirmation
+    console.log(`[BookingExecutor] Booking confirmed! ID: ${bookingResult.confirmationId}`);
+    await bookingService.updateBookingWithGameTimeConfirmation(
+      booking.id,
+      bookingResult.confirmationId,
+      bookingResult.actualCourt
+    );
+
+    // Step 6: Logout
+    await gametimeApi.logout();
+
+    return {
+      bookingId: booking.id,
+      success: true,
+      confirmationId: bookingResult.confirmationId,
+      actualCourt: bookingResult.actualCourt,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error(`[BookingExecutor] Error executing booking ${booking.id}:`, message);
+
+    // Logout on error
+    try {
+      await gametimeApi.logout();
+    } catch (logoutError) {
+      console.warn('[BookingExecutor] Error during logout:', logoutError);
+    }
 
     // Update booking with error
     const retryCount = (booking.retry_count || 0) + 1;
@@ -129,7 +164,7 @@ export async function executePendingBookings(userId: string): Promise<BookingExe
 
     // Execute each booking
     for (const booking of bookings) {
-      // Get GameTime password from credentials
+      // Get GameTime credentials from credentials table
       const password = await credentialsService.getGameTimePassword(userId);
 
       if (!password) {
@@ -142,7 +177,11 @@ export async function executePendingBookings(userId: string): Promise<BookingExe
         continue;
       }
 
-      const result = await executeBooking(booking, password);
+      // Get username (from booking or auth context)
+      // TODO: Fetch actual username from credentials table or auth context
+      const username = booking.user_email || 'annieyang';  // Fallback - should come from credentials
+
+      const result = await executeBooking(booking, username, password);
       results.push(result);
       console.log(`[BookingExecutor] Booking ${booking.id} execution result:`, result);
 
@@ -171,42 +210,6 @@ export async function executePendingBookings(userId: string): Promise<BookingExe
   }
 }
 
-/**
- * Simulate booking execution for testing
- * In production, this would actually interact with GameTime.net via Puppeteer
- *
- * For now:
- * - 80% chance of success (confirmed)
- * - 20% chance of failure (no available courts)
- */
-function simulateBookingExecution(booking: Booking): {
-  success: boolean;
-  confirmationId?: string;
-  actualCourt?: number;
-  error?: string;
-} {
-  const random = Math.random();
-
-  // 80% success rate
-  if (random < 0.8) {
-    // Randomly assign a court (preferred or any available)
-    const assignedCourt = booking.accept_any_court
-      ? Math.floor(Math.random() * 6) + 1
-      : booking.preferred_court;
-
-    return {
-      success: true,
-      confirmationId: `CONF-${booking.id.substring(0, 8).toUpperCase()}`,
-      actualCourt: assignedCourt,
-    };
-  } else {
-    // 20% failure rate
-    return {
-      success: false,
-      error: 'No courts available at this time',
-    };
-  }
-}
 
 /**
  * Start the booking execution scheduler
