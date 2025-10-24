@@ -182,10 +182,10 @@ const DURATION_OPTIONS: Duration[] = [1, 1.5];
  * Recurrence options
  */
 const RECURRENCE_OPTIONS = [
-  { value: BookingRecurrence.ONCE, label: 'Once' },
-  { value: BookingRecurrence.WEEKLY, label: 'Weekly' },
-  { value: BookingRecurrence.BI_WEEKLY, label: 'Bi-Weekly' },
-  { value: BookingRecurrence.MONTHLY, label: 'Monthly' },
+  { value: 'once', label: 'Once' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'bi-weekly', label: 'Bi-Weekly' },
+  { value: 'monthly', label: 'Monthly' },
 ];
 
 /**
@@ -269,7 +269,7 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
     booking_time: '10:00',
     booking_type: 'singles',
     duration_hours: 1,
-    recurrence: BookingRecurrence.ONCE,
+    recurrence: 'once',
   });
 
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -312,7 +312,7 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
               booking_time: '10:00',
               booking_type: 'singles',
               duration_hours: 1,
-              recurrence: BookingRecurrence.ONCE,
+              recurrence: 'once',
             });
             setValidationError(null);
             // Redirect to My Bookings if callback provided
@@ -384,7 +384,7 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
       booking_time: '10:00',
       booking_type: 'singles',
       duration_hours: 1,
-      recurrence: BookingRecurrence.ONCE,
+      recurrence: 'once',
     });
     setSelectedDate(today);
     setValidationError(null);
