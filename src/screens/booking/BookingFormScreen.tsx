@@ -20,7 +20,7 @@ import { ThemedText } from '../../components/themed-text';
 import { ThemedView } from '../../components/themed-view';
 import { useAuth } from '../../hooks/useAuth';
 import { useBooking } from '../../hooks/useBooking';
-import { BookingRecurrence, BookingInput, Duration } from '../../types/index';
+import { BookingInput, Duration } from '../../types/index';
 
 // Custom Picker component for both web and mobile
 interface PickerItem {
