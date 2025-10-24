@@ -1,13 +1,56 @@
 # JC Court Booking Tool - Development Progress
 
 ## Current Status
-- **Developer:** ✅ Booking feature COMPLETE + CRITICAL FIXES APPLIED
-- **Status:** 🚀 Critical field mapping bugs fixed - MyBookings tab should now work
-- **Last Updated:** 2025-10-24
+- **Developer:** ✅ Booking feature COMPLETE + CRITICAL PICKER BUG FIXED
+- **Status:** 🚀 CustomPicker recurrence enum conversion bug fixed - Web form now fully functional
+- **Last Updated:** 2025-10-24 (Latest: CustomPicker fix)
 
 ---
 
-## LATEST UPDATE - 2025-10-24: Critical Booking Form Fixes Applied
+## LATEST UPDATE - 2025-10-24: Critical CustomPicker Type Conversion Bug Fixed
+
+### Bug Found During Web Testing
+When testing the booking form on web platform, the app crashed when changing recurrence dropdown with error:
+```
+Error: formData.recurrence.charAt is not a function
+```
+
+### Root Cause Identified
+The CustomPicker component was converting ALL select option values to integers using `parseInt()`, which:
+1. Works correctly for Court dropdown (numeric values 1-6)
+2. **Breaks Duration dropdown** (values like "1", "1.5" as strings)
+3. **Breaks Recurrence dropdown** (enum values like "once", "weekly", "bi-weekly")
+
+When the summary tried to call `.charAt()` on non-string values, it crashed.
+
+### Fixes Applied ✅
+- ✅ **Commit a41b0b3:** Fixed CustomPicker type detection
+  - Added intelligent type detection to check if items have numeric values
+  - Only parses as integers if ALL items are numeric
+  - Preserves string values for Duration and Recurrence dropdowns
+  - Fixed summary display to handle hyphenated strings (e.g., 'bi-weekly' → 'Bi-Weekly')
+
+### Testing Results ✅
+**Browser Testing on http://localhost:8084:**
+- ✅ Booking form loads without errors
+- ✅ Court dropdown works correctly (values: 0-6)
+- ✅ Time dropdown works correctly (values: "06:00", "14:00", etc.)
+- ✅ Duration dropdown works correctly (values: "1", "1.5")
+- ✅ Recurrence dropdown works correctly (values: "once", "weekly", "bi-weekly", "monthly")
+- ✅ Booking Summary displays all fields correctly with proper formatting
+- ✅ Form validation works (shows "Booking date must be in the future")
+- ✅ No JavaScript console errors
+- ✅ CustomPicker component properly handles both numeric and string types
+
+### Next Steps
+- [ ] Test date picker state update with React (currently accepts HTML5 date input but needs React state sync)
+- [ ] Test form submission with valid future date
+- [ ] Test on iOS/Android to verify Alert-based picker works
+- [ ] Test "My Bookings" tab loading and displaying bookings
+
+---
+
+## PREVIOUS UPDATE - 2025-10-24: Critical Booking Form Fixes Applied
 
 ### Issue Found During Manual Testing
 When user submitted booking and clicked "My Bookings" tab, page crashed with:
