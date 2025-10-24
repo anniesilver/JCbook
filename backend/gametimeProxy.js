@@ -14,6 +14,10 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const http = require('http');
+const https = require('https');
+const { CookieJar } = require('tough-cookie');
+const { wrapper } = require('axios-cookiejar-support');
 
 const app = express();
 const PORT = 3001;
@@ -23,20 +27,30 @@ app.use(cors());
 app.use(express.json());
 
 /**
- * Axios instance for GameTime.net API calls
+ * Create HTTP/HTTPS agents with keepAlive
  */
-const gametimeClient = axios.create({
-  baseURL: 'https://jct.gametime.net',
-  withCredentials: true,
-  headers: {
-    'X-Requested-With': 'XMLHttpRequest',
-  },
-});
+const httpAgent = new http.Agent({ keepAlive: true });
+const httpsAgent = new https.Agent({ keepAlive: true });
 
 /**
- * Store session cookies for persistence across requests
+ * Create a cookie jar for persistent session management
  */
-let sessionCookies = '';
+const cookieJar = new CookieJar();
+
+/**
+ * Axios instance for GameTime.net API calls
+ * Uses cookie jar to maintain session persistence
+ */
+const gametimeClient = wrapper(axios.create({
+  baseURL: 'https://jct.gametime.net',
+  httpAgent: httpAgent,
+  httpsAgent: httpsAgent,
+  headers: {
+    'X-Requested-With': 'XMLHttpRequest',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+  },
+  jar: cookieJar, // Use cookie jar
+}));
 
 /**
  * POST /api/gametime/login
@@ -61,14 +75,6 @@ app.post('/api/gametime/login', async (req, res) => {
         },
       }
     );
-
-    // Store cookies for future requests
-    const setCookieHeader = response.headers['set-cookie'];
-    if (setCookieHeader) {
-      sessionCookies = Array.isArray(setCookieHeader)
-        ? setCookieHeader.join('; ')
-        : setCookieHeader;
-    }
 
     console.log('[GameTimeProxy] Login successful');
 
@@ -99,11 +105,7 @@ app.get('/api/gametime/availability/:date', async (req, res) => {
 
     console.log(`[GameTimeProxy] Fetching availability for date: ${date}`);
 
-    const response = await gametimeClient.get(`/scheduling/index/jsoncourtdata/sport/1/date/${date}`, {
-      headers: {
-        Cookie: sessionCookies,
-      },
-    });
+    const response = await gametimeClient.get(`/scheduling/index/jsoncourtdata/sport/1/date/${date}`);
 
     console.log('[GameTimeProxy] Court data received');
 
@@ -113,6 +115,7 @@ app.get('/api/gametime/availability/:date', async (req, res) => {
     return res.status(500).json({
       success: false,
       error: 'Failed to fetch court availability',
+      details: error instanceof Error ? error.message : error,
     });
   }
 });
@@ -159,11 +162,7 @@ app.post('/api/gametime/booking', async (req, res) => {
 
     // Submit to GameTime
     // NOTE: The actual endpoint may vary - this is a placeholder
-    const response = await gametimeClient.post('/scheduling/index/submitbooking', bookingData, {
-      headers: {
-        Cookie: sessionCookies,
-      },
-    });
+    const response = await gametimeClient.post('/scheduling/index/submitbooking', bookingData);
 
     console.log('[GameTimeProxy] Booking submitted successfully');
 
@@ -190,13 +189,8 @@ app.post('/api/gametime/logout', async (req, res) => {
   try {
     console.log('[GameTimeProxy] Logging out');
 
-    await gametimeClient.post('/auth/logout', {}, {
-      headers: {
-        Cookie: sessionCookies,
-      },
-    });
+    await gametimeClient.post('/auth/logout', {});
 
-    sessionCookies = '';
     console.log('[GameTimeProxy] Logged out successfully');
 
     return res.json({ success: true });
