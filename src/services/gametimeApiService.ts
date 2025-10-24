@@ -2,6 +2,9 @@
  * GameTime API Service
  * Handles real integration with GameTime.net tennis court booking system
  *
+ * NOTE: This service uses a backend proxy server (localhost:3001) to avoid CORS issues.
+ * Browser (localhost:8084) → Proxy (localhost:3001) → GameTime.net
+ *
  * API Documentation: See GAMETIME_API_RESEARCH.md
  */
 
@@ -82,19 +85,19 @@ export interface AvailableSlot {
 
 /**
  * GameTime API Service
- * Handles authentication and booking operations with GameTime.net
+ * Communicates with GameTime.net through a backend proxy server
+ * to avoid CORS issues
  */
 export class GameTimeApiService {
-  private baseUrl: string = 'https://jct.gametime.net';
+  private proxyUrl: string = 'http://localhost:3001';
   private client: AxiosInstance;
   private isAuthenticated: boolean = false;
 
   constructor() {
     this.client = axios.create({
-      baseURL: this.baseUrl,
-      withCredentials: true,  // Send cookies with requests
+      baseURL: this.proxyUrl,
       headers: {
-        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/json',
       },
     });
   }
@@ -121,25 +124,19 @@ export class GameTimeApiService {
     try {
       console.log('[GameTime] Attempting login with username:', username);
 
-      // Submit login form
-      const response = await this.client.post('/auth',
-        `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-        }
-      );
+      // Call the proxy server to handle GameTime authentication
+      const response = await this.client.post('/api/gametime/login', {
+        username,
+        password,
+      });
 
-      // Check if login was successful
-      // GameTime redirects to dashboard on success, returns to auth page on failure
-      if (response.status === 200 && response.request.responseURL.includes('/scheduling')) {
+      if (response.data.success) {
         this.isAuthenticated = true;
         console.log('[GameTime] Login successful');
         return true;
       }
 
-      console.error('[GameTime] Login failed - invalid credentials or API changed');
+      console.error('[GameTime] Login failed:', response.data.error);
       return false;
     } catch (error) {
       console.error('[GameTime] Login error:', error instanceof Error ? error.message : error);
@@ -161,7 +158,7 @@ export class GameTimeApiService {
       console.log('[GameTime] Fetching court availability for date:', date);
 
       const response = await this.client.get<GameTimeCourtData>(
-        `/scheduling/index/jsoncourtdata/sport/1/date/${date}`
+        `/api/gametime/availability/${date}`
       );
 
       console.log('[GameTime] Court data received');
@@ -249,10 +246,6 @@ export class GameTimeApiService {
   /**
    * Submit a booking to GameTime
    *
-   * NOTE: This function structures the booking request but the actual endpoint
-   * discovery is still pending. This will be updated once we identify the
-   * exact POST endpoint and required fields.
-   *
    * @param courtNumber Court number (1-6)
    * @param date Date in YYYY-MM-DD format
    * @param startTime Start time in HH:MM format (24-hour)
@@ -276,36 +269,21 @@ export class GameTimeApiService {
         `[GameTime] Submitting booking: Court ${courtNumber}, ${date} at ${startTime}, ${durationMinutes} min, ${numberOfPlayers} players`
       );
 
-      // Convert start time to minutes for API
-      const [hours, minutes] = startTime.split(':').map(Number);
-      const startMinutes = (hours - 6) * 60 + minutes;  // Convert to minutes from 6 AM
-
-      // TODO: Discover the actual booking submission endpoint
-      // This is a placeholder structure based on common web form patterns
-      const bookingData = {
+      // Call the proxy server to handle booking submission
+      const response = await this.client.post('/api/gametime/booking', {
         court: courtNumber,
-        date: date,
-        time: startMinutes,
-        duration: durationMinutes,
-        players: numberOfPlayers,
-        // Additional fields may be required - will be updated after endpoint discovery
-      };
+        date,
+        startTime,
+        durationMinutes,
+        numberOfPlayers,
+      });
 
-      // PLACEHOLDER: Actual endpoint needs to be discovered
-      // Expected POST endpoint: /scheduling/index/submitbooking or similar
-      const response = await this.client.post(
-        '/scheduling/index/submitbooking',  // PLACEHOLDER ENDPOINT
-        bookingData
-      );
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Booking submission failed');
+      }
 
-      // Parse response for confirmation ID
-      // Format varies by endpoint - will be updated after discovery
-      const confirmationId = response.data.confirmationId ||
-                            response.data.confirmation_id ||
-                            response.data.c ||
-                            `CONF-${Date.now()}`;  // Fallback
-
-      const actualCourt = response.data.actualCourt || response.data.actual_court || courtNumber;
+      const confirmationId = response.data.confirmationId;
+      const actualCourt = response.data.actualCourt || courtNumber;
 
       console.log(`[GameTime] Booking successful! Confirmation: ${confirmationId}`);
 
@@ -334,7 +312,7 @@ export class GameTimeApiService {
    */
   async logout(): Promise<void> {
     try {
-      await this.client.post('/auth/logout');
+      await this.client.post('/api/gametime/logout');
       this.isAuthenticated = false;
       console.log('[GameTime] Logged out');
     } catch (error) {
