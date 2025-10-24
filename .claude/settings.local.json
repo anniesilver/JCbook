@@ -19,7 +19,8 @@
       "mcp__chrome-devtools__list_network_requests",
       "Bash(ls:*)",
       "mcp__chrome-devtools__new_page",
-      "mcp__chrome-devtools__list_pages"
+      "mcp__chrome-devtools__list_pages",
+      "mcp__chrome-devtools__fill_form"
     ],
     "deny": [],
     "ask": []

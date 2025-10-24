@@ -35,7 +35,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
 
     Alert.alert(
       'Retry Booking',
-      `Retry booking for ${booking.court} on ${booking.booking_date}?`,
+      `Retry booking for Court ${booking.preferred_court} on ${booking.booking_date}?`,
       [
         {
           text: 'Cancel',
@@ -69,7 +69,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
 
     Alert.alert(
       'Cancel Booking',
-      `Cancel booking for ${booking.court} on ${booking.booking_date}?`,
+      `Cancel booking for Court ${booking.preferred_court} on ${booking.booking_date}?`,
       [
         {
           text: 'No',
@@ -115,7 +115,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
     >
       <View style={styles.cardHeader}>
         <View style={styles.headerLeft}>
-          <Text style={styles.courtName}>{booking.court}</Text>
+          <Text style={styles.courtName}>Court {booking.preferred_court}</Text>
           <Text style={styles.dateTime}>
             {booking.booking_date} at {booking.booking_time}
           </Text>
@@ -130,12 +130,12 @@ export const BookingCard: React.FC<BookingCardProps> = ({
         </View>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Duration:</Text>
-          <Text style={styles.detailValue}>{booking.duration}</Text>
+          <Text style={styles.detailValue}>{booking.duration_hours} hour{booking.duration_hours > 1 ? 's' : ''}</Text>
         </View>
-        {booking.auto_book_status === 'confirmed' && booking.confirmation_id && (
+        {booking.auto_book_status === 'confirmed' && booking.gametime_confirmation_id && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Confirmation:</Text>
-            <Text style={styles.detailValue}>{booking.confirmation_id}</Text>
+            <Text style={styles.detailValue}>{booking.gametime_confirmation_id}</Text>
           </View>
         )}
         {booking.auto_book_status === 'failed' && booking.error_message && (
