@@ -34,6 +34,8 @@ const CustomPicker: React.FC<{
   items?: PickerItem[];
   style?: any;
 }> = ({ selectedValue, onValueChange, items = [], style }) => {
+  const [showPicker, setShowPicker] = useState(false);
+
   if (Platform.OS === 'web') {
     return (
       <select
@@ -65,7 +67,6 @@ const CustomPicker: React.FC<{
   }
 
   // For iOS/Android, show a modal-based picker
-  const [showPicker, setShowPicker] = useState(false);
   const selectedLabel = items.find((item) => item.value === selectedValue)?.label || 'Select...';
 
   return (
