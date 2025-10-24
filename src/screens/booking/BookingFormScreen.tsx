@@ -28,14 +28,13 @@ interface PickerItem {
   label: string;
 }
 
-const CustomPicker: React.FC<{
+// Picker component that uses Alert for native platforms
+const CustomPicker = ({ selectedValue, onValueChange, items = [], style }: {
   selectedValue: any;
   onValueChange: (value: any) => void;
   items?: PickerItem[];
   style?: any;
-}> = ({ selectedValue, onValueChange, items = [], style }) => {
-  const [showPicker, setShowPicker] = useState(false);
-
+}) => {
   if (Platform.OS === 'web') {
     return (
       <select
@@ -66,92 +65,40 @@ const CustomPicker: React.FC<{
     );
   }
 
-  // For iOS/Android, show a modal-based picker
-  const selectedLabel = items.find((item) => item.value === selectedValue)?.label || 'Select...';
+  // For iOS/Android, use ActionSheetIOS or Alert
+  const selectedLabel = items.find((item: PickerItem) => item.value === selectedValue)?.label || 'Select...';
 
   return (
-    <View>
-      <TouchableOpacity
-        style={{
-          borderWidth: 1,
-          borderColor: '#DDD',
-          borderRadius: 8,
-          paddingHorizontal: 12,
-          paddingVertical: 12,
-          backgroundColor: '#FFF',
-          justifyContent: 'center',
-          ...style,
-        }}
-        onPress={() => setShowPicker(true)}
-      >
-        <ThemedText style={{ fontSize: 16, color: '#333' }}>
-          {selectedLabel}
-        </ThemedText>
-      </TouchableOpacity>
-
-      {showPicker && (
-        <View
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            backgroundColor: '#FFF',
-            borderTopLeftRadius: 12,
-            borderTopRightRadius: 12,
-            maxHeight: 400,
-            zIndex: 1000,
-          }}
-        >
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'flex-end',
-              paddingHorizontal: 16,
-              paddingVertical: 12,
-              borderBottomWidth: 1,
-              borderBottomColor: '#EEE',
-            }}
-          >
-            <TouchableOpacity onPress={() => setShowPicker(false)}>
-              <ThemedText style={{ color: '#007AFF', fontSize: 16, fontWeight: '600' }}>
-                Done
-              </ThemedText>
-            </TouchableOpacity>
-          </View>
-          <ScrollView
-            style={{ flex: 1 }}
-          >
-            {items.map((item) => (
-              <TouchableOpacity
-                key={item.value}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 16,
-                  borderBottomWidth: 1,
-                  borderBottomColor: '#EEE',
-                  backgroundColor: selectedValue === item.value ? '#E8F4FF' : '#FFF',
-                }}
-                onPress={() => {
-                  onValueChange(item.value);
-                  setShowPicker(false);
-                }}
-              >
-                <ThemedText
-                  style={{
-                    fontSize: 16,
-                    color: selectedValue === item.value ? '#007AFF' : '#333',
-                    fontWeight: selectedValue === item.value ? '600' : '400',
-                  }}
-                >
-                  {item.label}
-                </ThemedText>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-    </View>
+    <TouchableOpacity
+      style={{
+        borderWidth: 1,
+        borderColor: '#DDD',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 12,
+        backgroundColor: '#FFF',
+        justifyContent: 'center',
+        ...style,
+      }}
+      onPress={() => {
+        const options = items.map((item: PickerItem) => item.label);
+        Alert.alert(
+          'Select Option',
+          undefined,
+          [
+            ...items.map((item: PickerItem) => ({
+              text: item.label,
+              onPress: () => onValueChange(item.value),
+            })),
+            { text: 'Cancel', onPress: () => {}, style: 'cancel' as const },
+          ]
+        );
+      }}
+    >
+      <ThemedText style={{ fontSize: 16, color: '#333' }}>
+        {selectedLabel}
+      </ThemedText>
+    </TouchableOpacity>
   );
 };
 
