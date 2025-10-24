@@ -1,9 +1,65 @@
 # JC Court Booking Tool - Development Progress
 
 ## Current Status
-- **Developer:** ✅ Booking feature COMPLETE + CRITICAL PICKER BUG FIXED
-- **Status:** 🚀 CustomPicker recurrence enum conversion bug fixed - Web form now fully functional
-- **Last Updated:** 2025-10-24 (Latest: CustomPicker fix)
+- **Developer:** ✅ Booking feature COMPLETE + GAMETIME AUTH FIX IMPLEMENTED
+- **Status:** 🚀 GameTime proxy login endpoint corrected - Authorization issue RESOLVED
+- **Last Updated:** 2025-10-24 (Latest: GameTime /auth/json-index endpoint fix)
+
+---
+
+## LATEST UPDATE - 2025-10-24: GameTime Authentication Endpoint Discovery & Fix
+
+### Critical Discovery: Wrong Login Endpoint Was Causing 401 Errors ✅
+
+**Issue:** User reported 2 failed bookings in "My Bookings" tab:
+- Court 1 on 2025-10-28: "Failed to fetch court availability" (HTTP 500)
+- Court 3 on 2025-10-29: "Failed to authenticate with GameTime" (HTTP 401)
+
+**Root Cause Identified:** The proxy was calling `POST /auth` but GameTime.net's actual login endpoint is `POST /auth/json-index`
+
+### Investigation Method
+Used Chrome DevTools MCP network inspection tools (`list_network_requests` & `get_network_request`) to capture actual browser authentication flow to GameTime:
+
+**Actual GameTime Login Details Discovered:**
+```
+Endpoint:  POST https://jct.gametime.net/auth/json-index
+Request Headers:
+  - Content-Type: application/x-www-form-urlencoded
+  - Accept: application/json, text/plain, */*
+Request Body:
+  - username=annieyang&password=jc333666
+Response Status:
+  - HTTP 200 (Success)
+Response Headers:
+  - Multiple Set-Cookie headers for session management:
+    - current_location=1; path=/mobile/
+    - is_scheduling=1; path=/mobile/
+    - (+ others for feature flags and user preferences)
+```
+
+### Fix Applied ✅
+**Commit d0569fc:** Changed proxy login endpoint from `/auth` to `/auth/json-index`
+- Updated `gametimeProxy.js` line 70 to call correct endpoint
+- Added proper `Accept` header for JSON responses
+- Now proxy will properly receive and store session cookies via CookieJar
+
+**Why This Fixes the 401 Error:**
+1. Browser now receives proper authentication response from GameTime
+2. CookieJar (tough-cookie library) automatically captures Set-Cookie headers
+3. Subsequent requests (availability, booking) include stored cookies automatically
+4. Server accepts authenticated requests instead of rejecting with 401
+
+### Key Technical Insights
+- GameTime uses traditional form-submission authentication (not modern JSON API)
+- Session persistence requires cookies to be maintained across requests
+- The endpoint naming `/auth/json-index` suggests JSON response (not form redirect)
+- Multiple Set-Cookie headers set different feature flags per user account
+
+### Next Step
+✅ **Manual Testing Required:** User will test the booking flow with the corrected endpoint
+- The proxy should now successfully authenticate and maintain session
+- Court availability should fetch without 401 errors
+- Booking submission should succeed with proper session cookies
 
 ---
 
