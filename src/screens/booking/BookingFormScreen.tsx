@@ -39,7 +39,12 @@ const CustomPicker = ({ selectedValue, onValueChange, items = [], style }: {
     return (
       <select
         value={selectedValue}
-        onChange={(e) => onValueChange(e.target.value === '' ? 0 : parseInt(e.target.value, 10))}
+        onChange={(e) => {
+          const value = e.target.value;
+          // Try to convert to number if all items have numeric values
+          const shouldParseAsInt = items.every((item) => typeof item.value === 'number' || !isNaN(Number(item.value)));
+          onValueChange(shouldParseAsInt && value !== '' ? Number(value) : value);
+        }}
         style={{
           borderWidth: 1,
           borderColor: '#DDD',
@@ -570,7 +575,13 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
           <View style={styles.summaryItem}>
             <ThemedText style={styles.summaryLabel}>Recurrence:</ThemedText>
             <ThemedText style={styles.summaryValue}>
-              {formData.recurrence.charAt(0).toUpperCase() + formData.recurrence.slice(1)}
+              {typeof formData.recurrence === 'string'
+                ? formData.recurrence
+                    .split('-')
+                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join('-')
+                : 'Once'
+              }
             </ThemedText>
           </View>
         </View>
