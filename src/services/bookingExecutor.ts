@@ -118,6 +118,13 @@ export async function executePendingBookings(userId: string): Promise<BookingExe
       return [];
     }
 
+    if (bookings.length === 0) {
+      console.log('[BookingExecutor] No pending bookings to execute');
+      return [];
+    }
+
+    console.log(`[BookingExecutor] Found ${bookings.length} bookings to execute`);
+
     const results: BookingExecutionResult[] = [];
 
     // Execute each booking
@@ -137,12 +144,25 @@ export async function executePendingBookings(userId: string): Promise<BookingExe
 
       const result = await executeBooking(booking, password);
       results.push(result);
+      console.log(`[BookingExecutor] Booking ${booking.id} execution result:`, result);
 
       // Small delay between bookings to avoid overwhelming the system
       await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     console.log(`[BookingExecutor] Executed ${results.length} bookings`);
+
+    // Refresh the booking list in the Zustand store to show updated statuses
+    try {
+      // Dynamically import to avoid circular dependency
+      const { useBookingStore } = await import('../store/bookingStore');
+      const store = useBookingStore.getState();
+      await store.loadUserBookings();
+      console.log('[BookingExecutor] Refreshed booking list in Zustand store');
+    } catch (refreshError) {
+      console.error('[BookingExecutor] Error refreshing booking list:', refreshError);
+    }
+
     return results;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
