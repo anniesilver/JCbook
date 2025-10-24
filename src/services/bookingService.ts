@@ -114,15 +114,15 @@ export async function getUserBookings(
       const scheduledTime = new Date(booking.scheduled_execute_time);
 
       // If the scheduled execution time has passed but status is still pending,
-      // update the display status to "processing" to show it's being/should be executed
+      // update the display status to "in_progress" to show it's being/should be executed
       if (
         booking.auto_book_status === "pending" &&
         booking.status === "pending" &&
         scheduledTime <= now
       ) {
         // In production, there would be a background job that updates this
-        // For now, we update it to "processing" to reflect the actual state
-        booking.auto_book_status = "processing";
+        // For now, we update it to "in_progress" to reflect the actual state
+        booking.auto_book_status = "in_progress";
       }
     }
 

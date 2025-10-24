@@ -7,7 +7,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 interface StatusBadgeProps {
-  status: 'pending' | 'processing' | 'confirmed' | 'failed';
+  status: 'pending' | 'in_progress' | 'success' | 'failed';
   size?: 'small' | 'medium' | 'large';
 }
 
@@ -18,13 +18,13 @@ const statusConfig = {
     label: 'Pending',
     icon: '⏱️',
   },
-  processing: {
+  in_progress: {
     color: '#0066CC', // Blue
     backgroundColor: '#D6E9FF',
     label: 'Processing',
     icon: '⚙️',
   },
-  confirmed: {
+  success: {
     color: '#28A745', // Green
     backgroundColor: '#D4EDDA',
     label: 'Confirmed',

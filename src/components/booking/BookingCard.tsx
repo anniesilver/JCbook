@@ -134,10 +134,10 @@ export const BookingCard: React.FC<BookingCardProps> = ({
     );
   };
 
-  const statusMap: Record<string, 'pending' | 'processing' | 'confirmed' | 'failed'> = {
+  const statusMap: Record<string, 'pending' | 'in_progress' | 'success' | 'failed'> = {
     pending: 'pending',
-    processing: 'processing',
-    confirmed: 'confirmed',
+    in_progress: 'in_progress',
+    success: 'success',
     failed: 'failed',
   };
 
