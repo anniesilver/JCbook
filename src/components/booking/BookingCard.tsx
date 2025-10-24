@@ -19,6 +19,7 @@ interface BookingCardProps {
   booking: Booking;
   onRetry?: (bookingId: string) => Promise<void>;
   onCancel?: (bookingId: string) => Promise<void>;
+  onDelete?: (bookingId: string) => Promise<void>;
   onViewDetails?: (booking: Booking) => void;
 }
 
@@ -26,6 +27,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
   booking,
   onRetry,
   onCancel,
+  onDelete,
   onViewDetails,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -87,6 +89,40 @@ export const BookingCard: React.FC<BookingCardProps> = ({
               Alert.alert(
                 'Error',
                 error instanceof Error ? error.message : 'Failed to cancel booking'
+              );
+            } finally {
+              setIsLoading(false);
+            }
+          },
+          style: 'destructive',
+        },
+      ]
+    );
+  };
+
+  const handleDelete = async () => {
+    if (!onDelete) return;
+
+    Alert.alert(
+      'Delete Booking',
+      `Delete booking for Court ${booking.preferred_court} on ${booking.booking_date}?`,
+      [
+        {
+          text: 'No',
+          onPress: () => {},
+          style: 'cancel',
+        },
+        {
+          text: 'Yes, Delete',
+          onPress: async () => {
+            setIsLoading(true);
+            try {
+              await onDelete(booking.id);
+              Alert.alert('Success', 'Booking deleted');
+            } catch (error) {
+              Alert.alert(
+                'Error',
+                error instanceof Error ? error.message : 'Failed to delete booking'
               );
             } finally {
               setIsLoading(false);
@@ -161,16 +197,16 @@ export const BookingCard: React.FC<BookingCardProps> = ({
               )}
             </TouchableOpacity>
           )}
-          {status === 'pending' && onCancel && (
+          {onDelete && (
             <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
-              onPress={handleCancel}
+              style={styles.deleteIconButton}
+              onPress={handleDelete}
               disabled={isLoading}
             >
               {isLoading ? (
                 <ActivityIndicator size="small" color="#DC3545" />
               ) : (
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={styles.deleteIcon}>🗑️</Text>
               )}
             </TouchableOpacity>
           )}
@@ -280,5 +316,19 @@ const styles = StyleSheet.create({
     color: '#DC3545',
     fontWeight: '600',
     fontSize: 14,
+  },
+  deleteIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8D7DA',
+    borderWidth: 1,
+    borderColor: '#DC3545',
+  },
+  deleteIcon: {
+    fontSize: 20,
+    lineHeight: 20,
   },
 });

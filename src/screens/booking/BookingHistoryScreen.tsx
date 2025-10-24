@@ -29,7 +29,7 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
   onClose,
   showCloseButton = false,
 }) => {
-  const { bookings, isLoading, loadUserBookings, retryBooking, cancelBooking } =
+  const { bookings, isLoading, loadUserBookings, retryBooking, cancelBooking, deleteBooking } =
     useBookingStore();
   const [filter, setFilter] = useState<FilterType>('all');
   const [sortBy, setSortBy] = useState<'date' | 'status'>('date');
@@ -90,6 +90,18 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
       Alert.alert(
         'Error',
         error instanceof Error ? error.message : 'Failed to cancel booking'
+      );
+    }
+  };
+
+  const handleDelete = async (bookingId: string) => {
+    try {
+      await deleteBooking(bookingId);
+      await loadUserBookings();
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to delete booking'
       );
     }
   };
@@ -221,6 +233,7 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
               booking={item}
               onRetry={handleRetry}
               onCancel={handleCancel}
+              onDelete={handleDelete}
               onViewDetails={() => {
                 // Could show a detailed view modal here
                 Alert.alert(
