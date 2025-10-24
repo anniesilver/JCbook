@@ -1627,5 +1627,75 @@ npx expo start --web --port 8084
 **Documentation:**
 - See `CORS_FIX_IMPLEMENTATION.md` for complete details
 
-**Status:** 🟢 **CORS ISSUE RESOLVED - READY FOR MANUAL TESTING**
-**Ready for:** User to test booking workflow with proxy server
+**Status:** 🟡 **PROXY SESSION MANAGEMENT - INVESTIGATING 401 ERROR**
+**Last Updated:** 2025-10-24 (Current Session)
+**Issue:** Proxy server returns 401 Unauthorized when fetching court availability after login
+
+## Session Update - 2025-10-24 (CURRENT)
+
+### Issue Discovered
+When user clicked "My Bookings" tab, found 2 failed bookings with errors:
+1. **Court 1, 2025-10-28** - "Failed to fetch court availability" (HTTP 500)
+2. **Court 3, 2025-10-29** - "Failed to authenticate with GameTime" (HTTP 401)
+
+### Root Cause Analysis
+Proxy server logs showed:
+```
+[GameTimeProxy] Login successful ✅
+[GameTimeProxy] Fetching availability...
+[GameTimeProxy] Availability error: Request failed with status code 401 ❌
+```
+
+**Problem:** GameTime session cookies not being properly maintained across requests
+- Login succeeds and returns Set-Cookie headers
+- But subsequent availability request gets 401 Unauthorized
+- Indicates session/cookies not being sent with follow-up requests
+
+### Fixes Applied
+1. ✅ **Removed retry button** from BookingCard UI (not needed for current workflow)
+2. ✅ **Upgraded proxy cookie handling** to use `tough-cookie` library:
+   - Installed: `tough-cookie` + `axios-cookiejar-support`
+   - Replaced manual cookie string management with automatic CookieJar
+   - CookieJar automatically:
+     - Stores cookies from Set-Cookie headers
+     - Sends them with all subsequent requests
+     - Manages cookie lifecycle
+
+### Changes Made
+**File: `backend/gametimeProxy.js`**
+- Added `CookieJar` from tough-cookie
+- Wrapped axios client with cookie jar support
+- Removed manual `sessionCookies` string management
+- Added User-Agent header to mimic browser
+- Simplified login/availability/booking/logout endpoints
+
+**File: `src/components/booking/BookingCard.tsx`**
+- Removed `onRetry` prop and handler
+- Removed retry button from failed bookings
+- Only delete button remains for failed bookings
+
+### Current Status
+- Proxy is running with cookie jar support
+- Manual testing shows errors still present
+- This suggests the issue may be deeper:
+  - Possible: GameTime requires specific session validation beyond cookies
+  - Possible: Set-Cookie headers not being set properly on login
+  - Possible: GameTime.net endpoint paths or parameters incorrect
+
+### Next Investigation Steps
+1. **Check proxy logs** - Monitor what cookies are actually being set on login
+2. **Test with curl** - Manual test of proxy endpoints to verify flow:
+   ```bash
+   curl -v http://localhost:3001/api/gametime/login -d '{"username":"...","password":"..."}'
+   curl -v http://localhost:3001/api/gametime/availability/2025-10-28
+   ```
+3. **Verify GameTime endpoint** - Ensure `/scheduling/index/jsoncourtdata/sport/1/date/{date}` is correct
+4. **Check for CSRF tokens** - GameTime may require CSRF token in addition to session cookies
+5. **Inspect response headers** - See if Set-Cookie is actually being returned
+
+### Commits This Session
+- `3f9f9a9` - fix: improve GameTime proxy cookie handling and remove retry button
+
+---
+
+**Ready for:** Further investigation of proxy session/cookie issue
