@@ -113,12 +113,16 @@ export const useBookingStore = create<BookingStore>()(
 
         set((state) => {
           // Ensure bookings array is properly typed and has all required fields
-          state.bookings = (bookings || []).map(booking => ({
-            ...booking,
-            retry_count: booking.retry_count ?? 0,
-            created_at: booking.created_at || new Date().toISOString(),
-            updated_at: booking.updated_at || new Date().toISOString(),
-          }));
+          // Use array mutation instead of reassignment to work properly with immer
+          state.bookings.length = 0; // Clear the array
+          (bookings || []).forEach(booking => {
+            state.bookings.push({
+              ...booking,
+              retry_count: booking.retry_count ?? 0,
+              created_at: booking.created_at || new Date().toISOString(),
+              updated_at: booking.updated_at || new Date().toISOString(),
+            });
+          });
           state.isLoading = false;
         });
       } catch (err) {
