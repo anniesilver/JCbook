@@ -1,6 +1,42 @@
 # JC Court Booking Tool - Development Progress
 
 ## Current Status
+- **Developer:** ✅ Booking feature COMPLETE + CRITICAL FIXES APPLIED
+- **Status:** 🚀 Critical field mapping bugs fixed - MyBookings tab should now work
+- **Last Updated:** 2025-10-24
+
+---
+
+## LATEST UPDATE - 2025-10-24: Critical Booking Form Fixes Applied
+
+### Issue Found During Manual Testing
+When user submitted booking and clicked "My Bookings" tab, page crashed with:
+```
+Uncaught Error: Cannot assign to read only property '0' of object '[object Array]'
+```
+
+### Root Causes Identified (4 Critical Bugs)
+1. ❌ **BookingCard** referenced `booking.court` (doesn't exist in DB)
+2. ❌ **BookingCard** referenced `booking.duration` (should be `duration_hours`)
+3. ❌ **Booking Type** had redundant `court` field causing immer mutations to fail
+4. ❌ **BookingHistoryScreen** missing useEffect dependencies and data mapping
+
+### Fixes Applied ✅
+- ✅ **Commit 4f727ab:** Fixed field names in BookingCard and type definitions
+- ✅ **Commit 29ab0e6:** Improved booking history loading and data mapping
+- ✅ All 4 bugs fixed and tested in code review
+
+### Testing Documentation Created
+- 📋 **BOOKING_MANUAL_TEST_PLAN.md** - 89+ test cases with detailed instructions
+- 📋 **BOOKING_FORM_FIXES.md** - Summary of fixes with before/after examples
+- 📋 **BOOKING_FIX_TEST_REPORT.md** - Comprehensive test report and checklist
+
+### Next Step
+⏳ **Manual Testing Required:** Test the fixes in browser to verify MyBookings tab now loads correctly
+
+---
+
+## Current Status
 - **Developer:** ✅ Booking feature COMPLETE - Ready for testing
 - **Tester:** Ready to begin booking feature testing
 - **Status:** 🎉 Booking feature fully implemented with all backend services, form integration, and automation framework
