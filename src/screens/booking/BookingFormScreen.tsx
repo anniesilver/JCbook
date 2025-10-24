@@ -70,7 +70,7 @@ const CustomPicker = ({ selectedValue, onValueChange, items = [], style }: {
     );
   }
 
-  // For iOS/Android, use ActionSheetIOS or Alert
+  // For iOS/Android, use Alert
   const selectedLabel = items.find((item: PickerItem) => item.value === selectedValue)?.label || 'Select...';
 
   return (
@@ -86,7 +86,6 @@ const CustomPicker = ({ selectedValue, onValueChange, items = [], style }: {
         ...style,
       }}
       onPress={() => {
-        const options = items.map((item: PickerItem) => item.label);
         Alert.alert(
           'Select Option',
           undefined,
