@@ -22,106 +22,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { useBooking } from '../../hooks/useBooking';
 import { BookingRecurrence, BookingInput, Duration } from '../../types/index';
 
-// Custom Picker component for both web and mobile
-interface PickerItem {
-  value: any;
-  label: string;
-}
-
-interface CustomPickerProps {
-  selectedValue: any;
-  onValueChange: (value: any) => void;
-  children?: React.ReactNode;
-  items?: PickerItem[];
-  style?: any;
-}
-
-const CustomPicker: React.FC<CustomPickerProps> = ({
-  selectedValue,
-  onValueChange,
-  items = [],
-  style,
-}) => {
-  if (Platform.OS === 'web') {
-    return (
-      <select
-        value={selectedValue}
-        onChange={(e) => onValueChange(e.target.value === '' ? 0 : parseInt(e.target.value, 10))}
-        style={{
-          borderWidth: 1,
-          borderColor: '#DDD',
-          borderRadius: 8,
-          paddingLeft: 12,
-          paddingRight: 12,
-          paddingTop: 10,
-          paddingBottom: 10,
-          fontSize: 16,
-          color: '#333',
-          backgroundColor: '#FFF',
-          width: '100%',
-          boxSizing: 'border-box',
-          ...style,
-        } as React.CSSProperties}
-      >
-        {items.map((item) => (
-          <option key={item.value} value={item.value}>
-            {item.label}
-          </option>
-        ))}
-      </select>
-    );
-  }
-
-  // For iOS/Android, show a modal-based picker
-  const [showPicker, setShowPicker] = useState(false);
-  const selectedLabel = items.find((item) => item.value === selectedValue)?.label || 'Select...';
-
-  return (
-    <View>
-      <TouchableOpacity
-        style={[styles.pickerButton, style]}
-        onPress={() => setShowPicker(true)}
-      >
-        <ThemedText style={styles.pickerButtonText}>{selectedLabel}</ThemedText>
-      </TouchableOpacity>
-
-      {showPicker && (
-        <View style={styles.pickerModal}>
-          <View style={styles.pickerHeader}>
-            <TouchableOpacity onPress={() => setShowPicker(false)}>
-              <ThemedText style={styles.pickerDone}>Done</ThemedText>
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={styles.pickerOptions}>
-            {items.map((item) => (
-              <TouchableOpacity
-                key={item.value}
-                style={[
-                  styles.pickerOption,
-                  selectedValue === item.value && styles.pickerOptionSelected,
-                ]}
-                onPress={() => {
-                  onValueChange(item.value);
-                  setShowPicker(false);
-                }}
-              >
-                <ThemedText
-                  style={[
-                    styles.pickerOptionText,
-                    selectedValue === item.value && styles.pickerOptionTextSelected,
-                  ]}
-                >
-                  {item.label}
-                </ThemedText>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-    </View>
-  );
-};
-
 // Web-only date input component
 const WebDateInput: React.FC<{
   value: string;
@@ -294,6 +194,106 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
   // Date picker state
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date(getTodayDateString()));
+
+  // Custom Picker component for both web and mobile
+  interface PickerItem {
+    value: any;
+    label: string;
+  }
+
+  interface CustomPickerProps {
+    selectedValue: any;
+    onValueChange: (value: any) => void;
+    children?: React.ReactNode;
+    items?: PickerItem[];
+    style?: any;
+  }
+
+  const CustomPicker: React.FC<CustomPickerProps> = ({
+    selectedValue,
+    onValueChange,
+    items = [],
+    style,
+  }) => {
+    if (Platform.OS === 'web') {
+      return (
+        <select
+          value={selectedValue}
+          onChange={(e) => onValueChange(e.target.value === '' ? 0 : parseInt(e.target.value, 10))}
+          style={{
+            borderWidth: 1,
+            borderColor: '#DDD',
+            borderRadius: 8,
+            paddingLeft: 12,
+            paddingRight: 12,
+            paddingTop: 10,
+            paddingBottom: 10,
+            fontSize: 16,
+            color: '#333',
+            backgroundColor: '#FFF',
+            width: '100%',
+            boxSizing: 'border-box',
+            ...style,
+          } as React.CSSProperties}
+        >
+          {items.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    // For iOS/Android, show a modal-based picker
+    const [showPicker, setShowPicker] = useState(false);
+    const selectedLabel = items.find((item) => item.value === selectedValue)?.label || 'Select...';
+
+    return (
+      <View>
+        <TouchableOpacity
+          style={[styles.pickerButton, style]}
+          onPress={() => setShowPicker(true)}
+        >
+          <ThemedText style={styles.pickerButtonText}>{selectedLabel}</ThemedText>
+        </TouchableOpacity>
+
+        {showPicker && (
+          <View style={styles.pickerModal}>
+            <View style={styles.pickerHeader}>
+              <TouchableOpacity onPress={() => setShowPicker(false)}>
+                <ThemedText style={styles.pickerDone}>Done</ThemedText>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.pickerOptions}>
+              {items.map((item) => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[
+                    styles.pickerOption,
+                    selectedValue === item.value && styles.pickerOptionSelected,
+                  ]}
+                  onPress={() => {
+                    onValueChange(item.value);
+                    setShowPicker(false);
+                  }}
+                >
+                  <ThemedText
+                    style={[
+                      styles.pickerOptionText,
+                      selectedValue === item.value && styles.pickerOptionTextSelected,
+                    ]}
+                  >
+                    {item.label}
+                  </ThemedText>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   /**
    * Clear errors when component mounts
