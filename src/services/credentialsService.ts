@@ -282,6 +282,27 @@ export async function updateCredentials(
 }
 
 /**
+ * Get GameTime password for a user
+ * Used by booking executor to authenticate booking requests
+ * @param userId User ID
+ * @returns Decrypted password or null
+ */
+export async function getGameTimePassword(userId: string): Promise<string | null> {
+  try {
+    const { credential, error } = await getCredentials(userId);
+
+    if (error || !credential) {
+      return null;
+    }
+
+    return credential.password;
+  } catch (error) {
+    console.error('Error getting GameTime password:', error);
+    return null;
+  }
+}
+
+/**
  * Delete credentials
  * @param userId User ID
  * @param credentialId Credential ID
