@@ -41,7 +41,8 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
   }, []);
 
   const getFilteredBookings = (): Booking[] => {
-    let filtered = bookings;
+    // Create a copy to avoid mutating immer-wrapped array from store
+    let filtered = [...bookings];
 
     if (filter !== 'all') {
       filtered = filtered.filter((b) => b.auto_book_status === filter);
