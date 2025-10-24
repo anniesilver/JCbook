@@ -36,6 +36,8 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
 
   useEffect(() => {
     loadUserBookings();
+    // Only load on component mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getFilteredBookings = (): Booking[] => {
