@@ -270,7 +270,7 @@ export async function cancelBooking(
  * Get all pending bookings that should be executed (used by scheduler service)
  * Returns bookings where:
  * - auto_book_status is 'pending'
- * - scheduled_execute_time is <= current time
+ * - scheduled_execute_time is <= current time OR booking_date is <= today + 7 days (within booking window)
  * - status is 'pending' (not cancelled)
  */
 export async function getPendingBookingsToExecute(): Promise<{
@@ -278,14 +278,20 @@ export async function getPendingBookingsToExecute(): Promise<{
   error: APIError | null;
 }> {
   try {
-    const now = new Date().toISOString();
+    const now = new Date();
+    const nowISO = now.toISOString();
+
+    // Calculate 7 days from now (booking window cutoff)
+    const sevenDaysFromNow = new Date(now);
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    const sevenDaysISO = sevenDaysFromNow.toISOString().split('T')[0]; // Get YYYY-MM-DD
 
     const { data, error } = await supabase
       .from("bookings")
       .select("*")
       .eq("auto_book_status", "pending")
       .eq("status", "pending")
-      .lte("scheduled_execute_time", now)
+      .or(`scheduled_execute_time.lte.${nowISO},booking_date.lte.${sevenDaysISO}`)
       .order("scheduled_execute_time", { ascending: true });
 
     if (error) {
