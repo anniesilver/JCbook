@@ -17,7 +17,6 @@ import { Booking } from '../../types/index';
 
 interface BookingCardProps {
   booking: Booking;
-  onRetry?: (bookingId: string) => Promise<void>;
   onCancel?: (bookingId: string) => Promise<void>;
   onDelete?: (bookingId: string) => Promise<void>;
   onViewDetails?: (booking: Booking) => void;
@@ -25,46 +24,11 @@ interface BookingCardProps {
 
 export const BookingCard: React.FC<BookingCardProps> = ({
   booking,
-  onRetry,
   onCancel,
   onDelete,
   onViewDetails,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
-
-  const handleRetry = async () => {
-    if (!onRetry) return;
-
-    Alert.alert(
-      'Retry Booking',
-      `Retry booking for Court ${booking.preferred_court} on ${booking.booking_date}?`,
-      [
-        {
-          text: 'Cancel',
-          onPress: () => {},
-          style: 'cancel',
-        },
-        {
-          text: 'Retry',
-          onPress: async () => {
-            setIsLoading(true);
-            try {
-              await onRetry(booking.id);
-              Alert.alert('Success', 'Booking retry initiated');
-            } catch (error) {
-              Alert.alert(
-                'Error',
-                error instanceof Error ? error.message : 'Failed to retry booking'
-              );
-            } finally {
-              setIsLoading(false);
-            }
-          },
-          style: 'default',
-        },
-      ]
-    );
-  };
 
   const handleCancel = async () => {
     if (!onCancel) return;
@@ -182,34 +146,19 @@ export const BookingCard: React.FC<BookingCardProps> = ({
         )}
       </View>
 
-      {(status === 'failed' || status === 'pending') && (
+      {(status === 'failed' || status === 'pending') && onDelete && (
         <View style={styles.actionButtons}>
-          {status === 'failed' && onRetry && (
-            <TouchableOpacity
-              style={[styles.button, styles.retryButton]}
-              onPress={handleRetry}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color="#0066CC" />
-              ) : (
-                <Text style={styles.retryButtonText}>Retry</Text>
-              )}
-            </TouchableOpacity>
-          )}
-          {onDelete && (
-            <TouchableOpacity
-              style={styles.deleteIconButton}
-              onPress={handleDelete}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color="#DC3545" />
-              ) : (
-                <Text style={styles.deleteIcon}>🗑️</Text>
-              )}
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={styles.deleteIconButton}
+            onPress={handleDelete}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#DC3545" />
+            ) : (
+              <Text style={styles.deleteIcon}>🗑️</Text>
+            )}
+          </TouchableOpacity>
         </View>
       )}
     </TouchableOpacity>
