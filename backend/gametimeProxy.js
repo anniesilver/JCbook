@@ -45,6 +45,7 @@ const gametimeClient = wrapper(axios.create({
   baseURL: 'https://jct.gametime.net',
   httpAgent: httpAgent,
   httpsAgent: httpsAgent,
+  withCredentials: true, // Enable credentials for cross-domain requests
   headers: {
     'X-Requested-With': 'XMLHttpRequest',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -106,7 +107,14 @@ app.get('/api/gametime/availability/:date', async (req, res) => {
 
     console.log(`[GameTimeProxy] Fetching availability for date: ${date}`);
 
-    const response = await gametimeClient.get(`/scheduling/index/jsoncourtdata/sport/1/date/${date}`);
+    const response = await gametimeClient.get(
+      `/scheduling/index/jsoncourtdata/sport/1/date/${date}`,
+      {
+        headers: {
+          'Referer': 'https://jct.gametime.net/scheduling/index/index/sport/1',
+        },
+      }
+    );
 
     console.log('[GameTimeProxy] Court data received');
 
