@@ -35,9 +35,19 @@ const gametimeClient: AxiosInstance = axios.create({
 });
 
 /**
- * Store session cookies for persistence across requests
+ * Store session cookies as an object for proper management
+ * Key: cookie name, Value: cookie value
  */
-let sessionCookies = '';
+let sessionCookies: { [key: string]: string } = {};
+
+/**
+ * Helper function to format cookies object into Cookie header string
+ */
+function formatCookieHeader(cookiesObj: { [key: string]: string }): string {
+  return Object.entries(cookiesObj)
+    .map(([name, value]) => `${name}=${value}`)
+    .join('; ');
+}
 
 /**
  * POST /api/gametime/login
@@ -66,9 +76,29 @@ app.post('/api/gametime/login', async (req: Request, res: Response) => {
     // Store cookies for future requests
     const setCookieHeader = response.headers['set-cookie'];
     if (setCookieHeader) {
-      sessionCookies = Array.isArray(setCookieHeader)
-        ? setCookieHeader.join('; ')
-        : setCookieHeader;
+      const setCookieArray = Array.isArray(setCookieHeader)
+        ? setCookieHeader
+        : [setCookieHeader];
+
+      console.log(`[GameTimeProxy] Found ${setCookieArray.length} Set-Cookie headers`);
+
+      // Parse each cookie and store individually
+      setCookieArray.forEach((cookie, index) => {
+        console.log(`[GameTimeProxy] Cookie ${index}: ${cookie}`);
+
+        // Extract name=value before attributes (semicolon)
+        const cookiePart = cookie.split(';')[0];
+        const [cookieName, cookieValue] = cookiePart.split('=');
+
+        if (cookieName && cookieValue) {
+          sessionCookies[cookieName.trim()] = cookieValue.trim();
+          console.log(`[GameTimeProxy] Stored: ${cookieName.trim()}=${cookieValue.trim()}`);
+        }
+      });
+
+      const cookieHeader = formatCookieHeader(sessionCookies);
+      console.log(`[GameTimeProxy] Total cookies: ${Object.keys(sessionCookies).length}`);
+      console.log(`[GameTimeProxy] Cookie header: ${cookieHeader}`);
     }
 
     console.log('[GameTimeProxy] Login successful');
@@ -98,19 +128,45 @@ app.get('/api/gametime/availability/:date', async (req: Request, res: Response) 
       return res.status(400).json({ error: 'Date parameter required (YYYY-MM-DD)' });
     }
 
+    const cookieCount = Object.keys(sessionCookies).length;
     console.log(`[GameTimeProxy] Fetching availability for date: ${date}`);
+    console.log(`[GameTimeProxy] Available cookies: ${cookieCount}`);
+
+    if (cookieCount === 0) {
+      console.warn('[GameTimeProxy] WARNING: No cookies available - user may not be authenticated');
+    }
+
+    // Format cookies into proper header
+    const cookieHeader = formatCookieHeader(sessionCookies);
+    console.log(`[GameTimeProxy] Sending Cookie header: ${cookieHeader || '(empty)'}`);
+
+    const requestHeaders: any = {
+      'Referer': 'https://jct.gametime.net/scheduling/index/index/sport/1',
+      'Accept': 'application/json, text/plain, */*',
+    };
+
+    if (cookieHeader) {
+      requestHeaders['Cookie'] = cookieHeader;
+    }
 
     const response = await gametimeClient.get(`/scheduling/index/jsoncourtdata/sport/1/date/${date}`, {
-      headers: {
-        Cookie: sessionCookies,
-      },
+      headers: requestHeaders,
     });
 
     console.log('[GameTimeProxy] Court data received');
+    console.log(`[GameTimeProxy] Courts returned: ${response.data.e?.length || 0}`);
 
     return res.json(response.data);
   } catch (error) {
     console.error('[GameTimeProxy] Availability error:', error instanceof Error ? error.message : error);
+    if (error instanceof Error && 'response' in error && error.response) {
+      const axError = error as any;
+      console.error(`[GameTimeProxy] Response status: ${axError.response.status}`);
+      console.error(`[GameTimeProxy] Response data: ${JSON.stringify(axError.response.data).substring(0, 500)}`);
+      if (axError.response.status === 401 || axError.response.status === 403) {
+        console.error('[GameTimeProxy] Authentication error - may need to login again');
+      }
+    }
     return res.status(500).json({
       success: false,
       error: 'Failed to fetch court availability',
@@ -160,10 +216,14 @@ app.post('/api/gametime/booking', async (req: Request, res: Response) => {
 
     // Submit to GameTime
     // NOTE: The actual endpoint may vary - this is a placeholder
+    const cookieHeader = formatCookieHeader(sessionCookies);
+    const bookingHeaders: any = {};
+    if (cookieHeader) {
+      bookingHeaders['Cookie'] = cookieHeader;
+    }
+
     const response = await gametimeClient.post('/scheduling/index/submitbooking', bookingData, {
-      headers: {
-        Cookie: sessionCookies,
-      },
+      headers: bookingHeaders,
     });
 
     console.log('[GameTimeProxy] Booking submitted successfully');
@@ -191,23 +251,23 @@ app.post('/api/gametime/logout', async (req: Request, res: Response) => {
   try {
     console.log('[GameTimeProxy] Logging out');
 
+    const cookieHeader = formatCookieHeader(sessionCookies);
+    const logoutHeaders: any = {};
+    if (cookieHeader) {
+      logoutHeaders['Cookie'] = cookieHeader;
+    }
+
     await gametimeClient.post('/auth/logout', {}, {
-      headers: {
-        Cookie: sessionCookies,
-      },
+      headers: logoutHeaders,
     });
 
-    sessionCookies = '';
     console.log('[GameTimeProxy] Logged out successfully');
-
-    return res.json({ success: true });
   } catch (error) {
     console.error('[GameTimeProxy] Logout error:', error instanceof Error ? error.message : error);
-    sessionCookies = '';
-    return res.status(500).json({
-      success: false,
-      error: 'Logout failed',
-    });
+  } finally {
+    // Clear cookies after logout attempt (success or failure)
+    sessionCookies = {};
+    return res.json({ success: true });
   }
 });
 

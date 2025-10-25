@@ -16,21 +16,9 @@ const cors = require('cors');
 const axios = require('axios');
 const http = require('http');
 const https = require('https');
-const fs = require('fs');
 
 const app = express();
 const PORT = 3001;
-const LOG_FILE = './backend/proxy.log';
-
-// Helper function to log to file and console
-function log(message) {
-  console.log(message);
-  try {
-    fs.appendFileSync(LOG_FILE, message + '\n');
-  } catch (e) {
-    // Fail silently if logging fails
-  }
-}
 
 // Middleware
 app.use(cors());
@@ -43,23 +31,37 @@ const httpAgent = new http.Agent({ keepAlive: true });
 const httpsAgent = new https.Agent({ keepAlive: true });
 
 /**
- * Manual cookie storage (simple string)
- * Stores cookies returned from GameTime in Set-Cookie headers
+ * Manual cookie storage as an object
+ * Key: cookie name, Value: cookie value
  */
-let sessionCookies = '';
+let sessionCookies = {};
+
+/**
+ * Helper function to format cookies object into Cookie header string
+ */
+function formatCookieHeader(cookiesObj) {
+  return Object.entries(cookiesObj)
+    .map(([name, value]) => `${name}=${value}`)
+    .join('; ');
+}
 
 /**
  * Axios instance for GameTime.net API calls
- * Manually manage cookies
+ * Manually manage cookies - don't auto-handle them
  */
 const gametimeClient = axios.create({
   baseURL: 'https://jct.gametime.net',
   httpAgent: httpAgent,
   httpsAgent: httpsAgent,
-  withCredentials: true,
+  withCredentials: false, // Disable auto cookie handling - we'll do it manually
+  maxRedirects: 0, // Don't follow redirects - they indicate auth failure
   headers: {
     'X-Requested-With': 'XMLHttpRequest',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+  },
+  validateStatus: (status) => {
+    // Don't throw on any status - we'll handle redirects manually
+    return true;
   },
 });
 
@@ -89,28 +91,36 @@ app.post('/api/gametime/login', async (req, res) => {
     );
 
     // Store cookies from response for future requests
-    log('[GameTimeProxy] Login response status: ' + response.status);
-    log('[GameTimeProxy] All response headers: ' + JSON.stringify(response.headers));
+    console.log('[LOGIN] Response status: ' + response.status);
+    console.log('[LOGIN] All headers: ' + JSON.stringify(response.headers));
 
     if (response.headers['set-cookie']) {
       const setCookieArray = Array.isArray(response.headers['set-cookie'])
         ? response.headers['set-cookie']
         : [response.headers['set-cookie']];
 
-      log('[GameTimeProxy] Set-Cookie headers found: ' + setCookieArray.length);
+      console.log('[LOGIN] Set-Cookie headers found: ' + setCookieArray.length);
+
+      // Parse each cookie and store individually
       setCookieArray.forEach((cookie, i) => {
-        log('[GameTimeProxy] Cookie ' + i + ': ' + cookie);
+        console.log('[LOGIN] Cookie ' + i + ': ' + cookie);
+
+        // Extract name=value before attributes (semicolon)
+        const cookiePart = cookie.split(';')[0];
+        const [cookieName, cookieValue] = cookiePart.split('=');
+
+        if (cookieName && cookieValue) {
+          sessionCookies[cookieName.trim()] = cookieValue.trim();
+          console.log('[LOGIN] Stored: ' + cookieName.trim() + '=' + cookieValue.trim());
+        }
       });
 
-      // Extract cookie names and values (before semicolon)
-      sessionCookies = setCookieArray
-        .map(cookie => cookie.split(';')[0])
-        .join('; ');
-
-      log('[GameTimeProxy] ✅ Login successful');
-      log('[GameTimeProxy] Cookies stored: ' + sessionCookies);
+      const formattedCookies = formatCookieHeader(sessionCookies);
+      console.log('[LOGIN] ✅ Success - ' + Object.keys(sessionCookies).length + ' cookies');
+      console.log('[LOGIN] Formatted: ' + formattedCookies);
     } else {
-      log('[GameTimeProxy] ⚠️ Login successful but NO Set-Cookie header received');
+      console.log('[LOGIN] ⚠️ NO Set-Cookie header found!');
+      console.log('[LOGIN] sessionCookies is still empty: ' + Object.keys(sessionCookies).length);
     }
 
     return res.json({
@@ -131,47 +141,90 @@ app.post('/api/gametime/login', async (req, res) => {
  * Fetches court availability for a specific date
  */
 app.get('/api/gametime/availability/:date', async (req, res) => {
+  const { date } = req.params;
+
+  if (!date) {
+    return res.status(400).json({ error: 'Date parameter required (YYYY-MM-DD)' });
+  }
+
+  // Check if cookies are available
+  const cookieCount = Object.keys(sessionCookies).length;
+  console.log(`[AVAIL START] Date: ${date}, Cookies: ${cookieCount}`);
+  console.log('[AVAIL] sessionCookies object keys:', Object.keys(sessionCookies));
+  console.log('[AVAIL] sessionCookies values:', sessionCookies);
+
+  // Format cookies into proper header string
+  const cookieHeader = formatCookieHeader(sessionCookies);
+  console.log(`[AVAIL] Formatted cookie header: "${cookieHeader}"`);
+
+  const headers = {
+    'Referer': 'https://jct.gametime.net/scheduling/index/index/sport/1',
+    'Accept': 'application/json, text/plain, */*',
+  };
+
+  if (cookieHeader) {
+    headers['Cookie'] = cookieHeader;
+  }
+
+  console.log('[AVAIL] Final request headers:', JSON.stringify(headers));
+  console.log('[AVAIL] About to call GameTime API...');
+
   try {
-    const { date } = req.params;
-
-    if (!date) {
-      return res.status(400).json({ error: 'Date parameter required (YYYY-MM-DD)' });
-    }
-
-    log(`[GameTimeProxy] Fetching availability for date: ${date}`);
-    log(`[GameTimeProxy] Using cookies: ${sessionCookies || 'NONE'}`);
-
     const response = await gametimeClient.get(
       `/scheduling/index/jsoncourtdata/sport/1/date/${date}`,
-      {
-        headers: {
-          'Referer': 'https://jct.gametime.net/scheduling/index/index/sport/1',
-          'Cookie': sessionCookies, // Send stored cookies
-        },
-      }
+      { headers }
     );
 
-    log('[GameTimeProxy] ✅ Court data received');
-    log('[GameTimeProxy] Response status: ' + response.status);
-    log('[GameTimeProxy] Courts count: ' + (response.data.e?.length || 0));
+    console.log('[AVAIL] Response status: ' + response.status);
+    console.log('[AVAIL] Response headers:', JSON.stringify(response.headers).substring(0, 200));
+
+    // Check for redirects (indicates auth failure)
+    if (response.status >= 300 && response.status < 400) {
+      console.log('[AVAIL] ❌ Got redirect! Status ' + response.status + ' - NOT AUTHENTICATED');
+      console.log('[AVAIL] Location header:', response.headers.location);
+      return res.status(401).json({
+        success: false,
+        error: 'Received redirect - authentication may have failed',
+        status: response.status,
+        redirectTo: response.headers.location,
+      });
+    }
+
+    if (response.status !== 200) {
+      console.log('[AVAIL] ❌ Non-200 status: ' + response.status);
+      console.log('[AVAIL] Response data sample:', JSON.stringify(response.data).substring(0, 200));
+      return res.status(response.status).json({
+        success: false,
+        error: 'GameTime server returned ' + response.status,
+        data: response.data,
+      });
+    }
+
+    console.log('[AVAIL] ✅ Success! Got 200');
+    console.log('[AVAIL] Data has courts: ' + !!response.data.e);
+    console.log('[AVAIL] Courts count: ' + (response.data.e?.length || 0));
 
     return res.json(response.data);
   } catch (error) {
-    log('[GameTimeProxy] ❌ Availability error: ' + error.message);
-    if (error.response) {
-      log('[GameTimeProxy] Response status: ' + error.response.status);
-      log('[GameTimeProxy] Response headers: ' + JSON.stringify(error.response.headers));
-      const respDataStr = JSON.stringify(error.response.data);
-      log('[GameTimeProxy] Response data: ' + respDataStr.substring(0, 500));
-    } else if (error.code) {
-      log('[GameTimeProxy] Error code: ' + error.code);
+    console.log('[AVAIL] ❌ ERROR THROWN');
+    console.log('[AVAIL] Error constructor:', error?.constructor?.name);
+    console.log('[AVAIL] Error message:', error?.message);
+    console.log('[AVAIL] Error code:', error?.code);
+
+    if (error?.response) {
+      console.log('[AVAIL] Has HTTP response: YES');
+      console.log('[AVAIL] Response status:', error.response.status);
     } else {
-      log('[GameTimeProxy] Full error: ' + JSON.stringify(error).substring(0, 500));
+      console.log('[AVAIL] Has HTTP response: NO');
     }
+
+    console.log('[AVAIL] About to return 500 error');
     return res.status(500).json({
       success: false,
       error: 'Failed to fetch court availability',
-      details: error.response?.status || error.message,
+      errorMessage: error?.message || 'Unknown error',
+      errorType: error?.constructor?.name,
+      details: error?.response?.status,
     });
   }
 });
@@ -216,9 +269,17 @@ app.post('/api/gametime/booking', async (req, res) => {
       players: numberOfPlayers,
     };
 
+    // Prepare headers with cookies
+    const cookieHeader = formatCookieHeader(sessionCookies);
+    const headers = {};
+    if (cookieHeader) {
+      headers['Cookie'] = cookieHeader;
+    }
+
     // Submit to GameTime
-    // NOTE: The actual endpoint may vary - this is a placeholder
-    const response = await gametimeClient.post('/scheduling/index/submitbooking', bookingData);
+    const response = await gametimeClient.post('/scheduling/index/submitbooking', bookingData, {
+      headers,
+    });
 
     console.log('[GameTimeProxy] Booking submitted successfully');
 
@@ -245,14 +306,24 @@ app.post('/api/gametime/logout', async (req, res) => {
   try {
     console.log('[GameTimeProxy] Logging out');
 
-    await gametimeClient.post('/auth/logout', {});
+    const cookieHeader = formatCookieHeader(sessionCookies);
+    const headers = {};
+    if (cookieHeader) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    await gametimeClient.post('/auth/logout', {}, { headers });
 
     console.log('[GameTimeProxy] Logged out successfully');
+
+    // Clear cookies after logout
+    sessionCookies = {};
 
     return res.json({ success: true });
   } catch (error) {
     console.error('[GameTimeProxy] Logout error:', error.message || error);
-    sessionCookies = '';
+    // Clear cookies even if logout fails
+    sessionCookies = {};
     return res.status(500).json({
       success: false,
       error: 'Logout failed',
