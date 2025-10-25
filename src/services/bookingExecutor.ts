@@ -66,18 +66,54 @@ export async function executeBooking(
     console.log(`[BookingExecutor] Looking for: Court ${booking.preferred_court}, Time ${booking.booking_time}, Duration ${durationMinutes} min`);
     console.log(`[BookingExecutor] Available slots:`, availableSlots);
 
-    // Find matching slot
-    const matchingSlot = availableSlots.find(
-      slot => {
-        const matches = (slot.courtNumber === booking.preferred_court || booking.accept_any_court) &&
-          slot.startTime === booking.booking_time &&
-          slot.durationMinutes >= durationMinutes;
-        if (!matches) {
-          console.log(`[BookingExecutor] Slot rejected: Court ${slot.courtNumber} (want ${booking.preferred_court}), Time ${slot.startTime} (want ${booking.booking_time}), Duration ${slot.durationMinutes} (need ${durationMinutes})`);
-        }
-        return matches;
+    // Find matching slot(s) - check for consecutive available slots
+    let matchingSlot: typeof availableSlots[0] | undefined;
+
+    for (let i = 0; i < availableSlots.length; i++) {
+      const slot = availableSlots[i];
+      const courtMatches = slot.courtNumber === booking.preferred_court || booking.accept_any_court;
+      const timeMatches = slot.startTime === booking.booking_time;
+
+      if (!courtMatches) {
+        continue;
       }
-    );
+
+      if (!timeMatches) {
+        continue;
+      }
+
+      // Check if we have enough consecutive slots for the duration
+      let consecutiveDuration = 0;
+      let slotIndex = i;
+
+      while (slotIndex < availableSlots.length && consecutiveDuration < durationMinutes) {
+        const currentSlot = availableSlots[slotIndex];
+
+        // Check if this slot is consecutive and on the same court
+        if (currentSlot.courtNumber !== slot.courtNumber) {
+          break;
+        }
+
+        // Check if this slot is consecutive (end time of previous = start time of current)
+        if (slotIndex > i) {
+          const prevSlot = availableSlots[slotIndex - 1];
+          if (prevSlot.endTime !== currentSlot.startTime) {
+            break; // Gap in availability
+          }
+        }
+
+        consecutiveDuration += currentSlot.durationMinutes;
+        slotIndex++;
+      }
+
+      if (consecutiveDuration >= durationMinutes) {
+        matchingSlot = slot;
+        console.log(`[BookingExecutor] ✅ Found matching slot block: Court ${slot.courtNumber}, ${slot.startTime}-${availableSlots[slotIndex - 1].endTime}, ${consecutiveDuration} min total`);
+        break;
+      } else {
+        console.log(`[BookingExecutor] ❌ Insufficient consecutive slots: Court ${slot.courtNumber}, ${slot.startTime}, only ${consecutiveDuration} min available (need ${durationMinutes})`);
+      }
+    }
 
     if (!matchingSlot && !booking.accept_any_court) {
       throw new Error(
