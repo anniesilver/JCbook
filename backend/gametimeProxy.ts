@@ -17,7 +17,7 @@ import axios from 'axios';
 import type { AxiosInstance } from 'axios';
 
 const app = express();
-const PORT = 3001;
+const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // Middleware
 app.use(cors());
