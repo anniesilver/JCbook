@@ -219,10 +219,10 @@ export async function createBookingWithSchedule(
     let scheduledExecuteTime: string;
 
     if (daysUntilBooking < 7) {
-      // Booking is within 7 days: Execute immediately in background (5 minutes from now)
+      // Booking is within 7 days: Execute immediately in background (5 seconds from now)
       // The court slot is already available on GameTime now
       const now = new Date();
-      scheduledExecuteTime = new Date(now.getTime() + 5 * 60 * 1000).toISOString();
+      scheduledExecuteTime = new Date(now.getTime() + 5 * 1000).toISOString();
     } else {
       // Booking is 7+ days away: Schedule for 8:00 AM UTC (7 days before target date)
       // When this time arrives, the court slot will become available on GameTime

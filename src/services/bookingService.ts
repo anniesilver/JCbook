@@ -289,7 +289,7 @@ export async function getPendingBookingsToExecute(): Promise<{
     const { data, error } = await supabase
       .from("bookings")
       .select("*")
-      .eq("auto_book_status", "pending")
+      .in("auto_book_status", ["pending", "in_progress"])
       .eq("status", "pending")
       .or(`scheduled_execute_time.lte.${nowISO},booking_date.lte.${sevenDaysISO}`)
       .order("scheduled_execute_time", { ascending: true });

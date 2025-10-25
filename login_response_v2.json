@@ -1,0 +1,17 @@
+{
+  "status": 200,
+  "dataKeys": [
+    "code",
+    "msg",
+    "isStaff",
+    "user"
+  ],
+  "data": {
+    "code": 202,
+    "msg": "The username or password was not recognized. Please check the spelling and try again.",
+    "isStaff": false,
+    "user": {
+      "name": "Wei"
+    }
+  }
+}

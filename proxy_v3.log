@@ -1,0 +1,11 @@
+Proxy V3 started on port 3003
+
+=== LOGIN REQUEST ===
+Username: annieyang
+Password: ***
+Form Data: username=annieyang&password=jc333666
+Sending POST to https://jct.gametime.net/auth/json-index
+Response Status: 200
+Response Headers: {"date":"Sat, 25 Oct 2025 05:58:36 GMT","content-type":"application/json; charset=utf-8","transfer-encoding":"chunked","connection":"keep-alive","server":"nginx/1.29.1","vary":"Accept-Encoding","x-powered-by":"PHP/8.1.33","set-cookie":["gametime=ebe82c1161f3f27e44c2cb988b1e6691; path=/; secure; Same
+Response Data: {"code":202,"msg":"The username or password was not recognized. Please check the spelling and try again.","isStaff":false,"user":{"name":"Wei"}}
+❌ Login failed! Code: 202, Message: The username or password was not recognized. Please check the spelling and try again.

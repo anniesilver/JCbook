@@ -1,0 +1,15 @@
+file:///C:/ANNIE-PROJECT/jc/backend/gametimeProxy.ts:14
+import express, { Request, Response } from 'express';
+                  ^^^^^^^
+SyntaxError: Named export 'Request' not found. The requested module 'express' is a CommonJS module, which may not support all module.exports as named exports.
+CommonJS modules can always be imported via the default export, for example using:
+
+import pkg from 'express';
+const { Request, Response } = pkg;
+
+    at ModuleJob._instantiate (node:internal/modules/esm/module_job:228:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:337:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:665:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.20.0
