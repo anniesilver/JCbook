@@ -1,14 +1,6 @@
 /**
- * GameTime API Proxy Server
- * Runs on localhost:3001
- * Handles all GameTime.net API calls to avoid CORS issues
- *
- * The browser (localhost:8084) calls this server (localhost:3001)
- * which then calls GameTime.net (jct.gametime.net)
- *
- * This eliminates CORS errors because:
- * - Browser → Proxy: Same-origin (both localhost, allowed)
- * - Proxy → GameTime: Server-to-server (no CORS restrictions)
+ * GameTime API Proxy Server - FIXED VERSION
+ * Properly handles cookie-based session management
  */
 
 const express = require('express');
@@ -20,56 +12,60 @@ const https = require('https');
 const app = express();
 const PORT = 3001;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-/**
- * Create HTTP/HTTPS agents with keepAlive
- */
+// Store cookies from login
+let sessionCookies = {};
+
 const httpAgent = new http.Agent({ keepAlive: true });
 const httpsAgent = new https.Agent({ keepAlive: true });
 
-/**
- * Session storage
- * GameTime uses localStorage for NRBA_SESSION, not HTTP cookies
- */
-let sessionData = {
-  nrbaSession: null, // The session token from login
-};
+const gametimeClient = axios.create({
+  baseURL: 'https://jct.gametime.net',
+  httpAgent: httpAgent,
+  httpsAgent: httpsAgent,
+  withCredentials: false,
+  maxRedirects: 0,
+  validateStatus: (status) => true,
+  headers: {
+    'X-Requested-With': 'XMLHttpRequest',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+  },
+});
 
 /**
- * Helper function to format cookies object into Cookie header string
+ * Helper: Format cookies object to Cookie header string
  */
-function formatCookieHeader(cookiesObj) {
-  return Object.entries(cookiesObj)
+function formatCookieHeader(cookies) {
+  return Object.entries(cookies)
     .map(([name, value]) => `${name}=${value}`)
     .join('; ');
 }
 
 /**
- * Axios instance for GameTime.net API calls
- * Manually manage cookies - don't auto-handle them
+ * Helper: Parse Set-Cookie headers
  */
-const gametimeClient = axios.create({
-  baseURL: 'https://jct.gametime.net',
-  httpAgent: httpAgent,
-  httpsAgent: httpsAgent,
-  withCredentials: false, // Disable auto cookie handling - we'll do it manually
-  maxRedirects: 0, // Don't follow redirects - they indicate auth failure
-  headers: {
-    'X-Requested-With': 'XMLHttpRequest',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-  },
-  validateStatus: (status) => {
-    // Don't throw on any status - we'll handle redirects manually
-    return true;
-  },
-});
+function parseCookies(setCookieHeader) {
+  const cookies = {};
+  if (!setCookieHeader) return cookies;
+
+  const setCookieArray = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+
+  setCookieArray.forEach((cookie) => {
+    // Extract name=value before attributes
+    const cookiePart = cookie.split(';')[0];
+    const [cookieName, cookieValue] = cookiePart.split('=');
+    if (cookieName && cookieValue) {
+      cookies[cookieName.trim()] = cookieValue.trim();
+    }
+  });
+
+  return cookies;
+}
 
 /**
  * POST /api/gametime/login
- * Authenticates with GameTime.net
  */
 app.post('/api/gametime/login', async (req, res) => {
   try {
@@ -79,7 +75,7 @@ app.post('/api/gametime/login', async (req, res) => {
       return res.status(400).json({ error: 'Username and password required' });
     }
 
-    console.log(`[GameTimeProxy] Attempting login for user: ${username}`);
+    console.log(`[LOGIN] Attempting login for: ${username}`);
 
     const response = await gametimeClient.post(
       '/auth/json-index',
@@ -92,27 +88,27 @@ app.post('/api/gametime/login', async (req, res) => {
       }
     );
 
-    // Extract session token from response
-    console.log('[LOGIN] Response status: ' + response.status);
-    console.log('[LOGIN] Response body type: ' + typeof response.data);
+    console.log(`[LOGIN] Response status: ${response.status}`);
+    console.log(`[LOGIN] Response code: ${response.data?.code}`);
 
-    // GameTime stores session in response body as NRBA_SESSION (not HTTP cookies)
-    if (response.data && response.data.value) {
-      // The session value is in response.data.value
-      sessionData.nrbaSession = response.data.value;
-      console.log('[LOGIN] ✅ Session token extracted');
-      console.log('[LOGIN] Token (first 50 chars): ' + String(response.data.value).substring(0, 50));
-    } else if (response.data) {
-      console.log('[LOGIN] Response data: ' + JSON.stringify(response.data).substring(0, 200));
-      console.log('[LOGIN] Looking for session token in response...');
+    // Extract and store cookies from response
+    const setCookieHeader = response.headers['set-cookie'];
+    if (setCookieHeader) {
+      const newCookies = parseCookies(setCookieHeader);
+      sessionCookies = { ...sessionCookies, ...newCookies };
+      console.log(`[LOGIN] Stored cookies: ${Object.keys(sessionCookies).join(', ')}`);
     }
 
+    // Check if login was successful
+    const success = response.data?.code === 200 || response.status === 200;
+
     return res.json({
-      success: true,
-      message: 'Authentication successful',
+      success: success,
+      message: success ? 'Authentication successful' : response.data?.msg || 'Authentication failed',
+      responseCode: response.data?.code,
     });
   } catch (error) {
-    console.error('[GameTimeProxy] Login error:', error.message || error);
+    console.error('[LOGIN] Error:', error.message);
     return res.status(401).json({
       success: false,
       error: 'Failed to authenticate with GameTime',
@@ -122,109 +118,77 @@ app.post('/api/gametime/login', async (req, res) => {
 
 /**
  * GET /api/gametime/availability/:date
- * Fetches court availability for a specific date
  */
 app.get('/api/gametime/availability/:date', async (req, res) => {
-  const { date } = req.params;
-
-  if (!date) {
-    return res.status(400).json({ error: 'Date parameter required (YYYY-MM-DD)' });
-  }
-
-  // Check if we have session token
-  console.log(`[AVAIL START] Date: ${date}`);
-  console.log('[AVAIL] Session token exists: ' + !!sessionData.nrbaSession);
-
-  if (!sessionData.nrbaSession) {
-    console.log('[AVAIL] ⚠️ No session token - user not authenticated');
-    return res.status(401).json({
-      success: false,
-      error: 'Not authenticated - please login first',
-    });
-  }
-
-  const headers = {
-    'Referer': 'https://jct.gametime.net/scheduling/index/index/sport/1',
-    'Accept': 'application/json, text/plain, */*',
-    // Try sending session as cookie
-    'Cookie': 'NRBA_SESSION=' + sessionData.nrbaSession,
-  };
-
-  console.log('[AVAIL] Headers: Referer, Accept, Cookie');
-  console.log('[AVAIL] About to call GameTime API...');
-
   try {
+    const { date } = req.params;
+
+    if (!date) {
+      return res.status(400).json({ error: 'Date parameter required (YYYY-MM-DD)' });
+    }
+
+    console.log(`[AVAIL] Requesting availability for: ${date}`);
+    console.log(`[AVAIL] Available cookies: ${Object.keys(sessionCookies).join(', ') || 'NONE'}`);
+
+    if (Object.keys(sessionCookies).length === 0) {
+      console.log('[AVAIL] WARNING: No cookies - user may not be authenticated');
+    }
+
+    // Build headers with cookies
+    const cookieHeader = formatCookieHeader(sessionCookies);
+    const headers = {
+      'Referer': 'https://jct.gametime.net/scheduling/index/index/sport/1',
+      'Accept': 'application/json, text/plain, */*',
+    };
+
+    if (cookieHeader) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    console.log(`[AVAIL] Sending request with Cookie header: ${!!cookieHeader}`);
+
     const response = await gametimeClient.get(
       `/scheduling/index/jsoncourtdata/sport/1/date/${date}`,
       { headers }
     );
 
-    console.log('[AVAIL] Response status: ' + response.status);
-    console.log('[AVAIL] Response headers:', JSON.stringify(response.headers).substring(0, 200));
+    console.log(`[AVAIL] Response status: ${response.status}`);
 
-    // Check for redirects (indicates auth failure)
+    // Check for redirect (auth failure)
     if (response.status >= 300 && response.status < 400) {
-      console.log('[AVAIL] ❌ Got redirect! Status ' + response.status + ' - NOT AUTHENTICATED');
-      console.log('[AVAIL] Location header:', response.headers.location);
+      console.log(`[AVAIL] ❌ Got redirect - authentication failed`);
       return res.status(401).json({
         success: false,
         error: 'Received redirect - authentication may have failed',
         status: response.status,
-        redirectTo: response.headers.location,
       });
     }
 
     if (response.status !== 200) {
-      console.log('[AVAIL] ❌ Non-200 status: ' + response.status);
-      console.log('[AVAIL] Response data sample:', JSON.stringify(response.data).substring(0, 200));
+      console.log(`[AVAIL] ❌ Non-200 status: ${response.status}`);
       return res.status(response.status).json({
         success: false,
-        error: 'GameTime server returned ' + response.status,
+        error: `GameTime returned ${response.status}`,
         data: response.data,
       });
     }
 
-    console.log('[AVAIL] ✅ Success! Got 200');
-    console.log('[AVAIL] Data has courts: ' + !!response.data.e);
-    console.log('[AVAIL] Courts count: ' + (response.data.e?.length || 0));
-
+    console.log(`[AVAIL] ✅ Success! Courts: ${response.data?.e?.length || 0}`);
     return res.json(response.data);
   } catch (error) {
-    console.log('[AVAIL] ❌ ERROR THROWN');
-    console.log('[AVAIL] Error constructor:', error?.constructor?.name);
-    console.log('[AVAIL] Error message:', error?.message);
-    console.log('[AVAIL] Error code:', error?.code);
-
-    if (error?.response) {
-      console.log('[AVAIL] Has HTTP response: YES');
-      console.log('[AVAIL] Response status:', error.response.status);
-    } else {
-      console.log('[AVAIL] Has HTTP response: NO');
-    }
-
-    console.log('[AVAIL] About to return 500 error');
+    console.error('[AVAIL] Error:', error.message);
+    console.error('[AVAIL] Error stack:', error.stack);
     return res.status(500).json({
       success: false,
       error: 'Failed to fetch court availability',
-      errorMessage: error?.message || 'Unknown error',
-      errorType: error?.constructor?.name,
-      details: error?.response?.status,
+      details: error.message,
+      errorType: error.constructor.name,
     });
   }
 });
 
 /**
  * POST /api/gametime/booking
- * Submits a booking to GameTime
- *
- * Request body:
- * {
- *   court: number,
- *   date: string (YYYY-MM-DD),
- *   startTime: string (HH:MM),
- *   durationMinutes: number,
- *   numberOfPlayers: number
- * }
  */
 app.post('/api/gametime/booking', async (req, res) => {
   try {
@@ -232,19 +196,15 @@ app.post('/api/gametime/booking', async (req, res) => {
 
     if (!court || !date || !startTime || !durationMinutes || !numberOfPlayers) {
       return res.status(400).json({
-        error: 'Missing required fields: court, date, startTime, durationMinutes, numberOfPlayers',
+        error: 'Missing required fields',
       });
     }
 
-    console.log(
-      `[GameTimeProxy] Submitting booking: Court ${court}, ${date} at ${startTime}, ${durationMinutes} min`
-    );
+    console.log(`[BOOKING] Court ${court}, ${date} at ${startTime}`);
 
-    // Convert start time to minutes from 6 AM
     const [hours, minutes] = startTime.split(':').map(Number);
     const startMinutes = (hours - 6) * 60 + minutes;
 
-    // Build booking data
     const bookingData = {
       court,
       date,
@@ -253,42 +213,38 @@ app.post('/api/gametime/booking', async (req, res) => {
       players: numberOfPlayers,
     };
 
-    // Prepare headers with cookies
     const cookieHeader = formatCookieHeader(sessionCookies);
     const headers = {};
     if (cookieHeader) {
       headers['Cookie'] = cookieHeader;
     }
 
-    // Submit to GameTime
     const response = await gametimeClient.post('/scheduling/index/submitbooking', bookingData, {
       headers,
     });
 
-    console.log('[GameTimeProxy] Booking submitted successfully');
+    console.log('[BOOKING] Submitted successfully');
 
     return res.json({
       success: true,
-      confirmationId: response.data.confirmationId || response.data.confirmation_id || `CONF-${Date.now()}`,
-      actualCourt: response.data.actualCourt || response.data.actual_court || court,
+      confirmationId: response.data.confirmationId || `CONF-${Date.now()}`,
+      actualCourt: response.data.actualCourt || court,
     });
   } catch (error) {
-    console.error('[GameTimeProxy] Booking error:', error.message || error);
+    console.error('[BOOKING] Error:', error.message);
     return res.status(500).json({
       success: false,
       error: 'Failed to submit booking',
-      details: error.message || 'Unknown error',
     });
   }
 });
 
 /**
  * POST /api/gametime/logout
- * Logs out from GameTime
  */
 app.post('/api/gametime/logout', async (req, res) => {
   try {
-    console.log('[GameTimeProxy] Logging out');
+    console.log('[LOGOUT] Logging out');
 
     const cookieHeader = formatCookieHeader(sessionCookies);
     const headers = {};
@@ -298,15 +254,12 @@ app.post('/api/gametime/logout', async (req, res) => {
 
     await gametimeClient.post('/auth/logout', {}, { headers });
 
-    console.log('[GameTimeProxy] Logged out successfully');
-
-    // Clear cookies after logout
+    console.log('[LOGOUT] Logged out successfully');
     sessionCookies = {};
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('[GameTimeProxy] Logout error:', error.message || error);
-    // Clear cookies even if logout fails
+    console.error('[LOGOUT] Error:', error.message);
     sessionCookies = {};
     return res.status(500).json({
       success: false,
@@ -316,15 +269,12 @@ app.post('/api/gametime/logout', async (req, res) => {
 });
 
 /**
- * Health check endpoint
+ * Health check
  */
 app.get('/health', (req, res) => {
   res.json({ status: 'GameTime Proxy Server is running' });
 });
 
-/**
- * Start server
- */
 app.listen(PORT, () => {
   console.log(`\n🎾 GameTime Proxy Server running on http://localhost:${PORT}`);
   console.log('Available endpoints:');
