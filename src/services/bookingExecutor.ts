@@ -41,11 +41,11 @@ export async function executeBooking(
   gametimePassword: string
 ): Promise<BookingExecutionResult> {
   try {
-    console.log(`[BookingExecutor] Executing booking ${booking.id} for ${booking.booking_date} at ${booking.booking_time}`);
+    console.log(`[BookingExecutor] Executing booking ${booking.id} for user ${booking.user_id}, ${booking.booking_date} at ${booking.booking_time}`);
 
     // Step 1: Login to GameTime
     console.log('[BookingExecutor] Authenticating with GameTime...');
-    const loginSuccess = await gametimeApi.login(username, gametimePassword);
+    const loginSuccess = await gametimeApi.login(username, gametimePassword, booking.user_id);
 
     if (!loginSuccess) {
       throw new Error('Failed to authenticate with GameTime');
@@ -53,7 +53,7 @@ export async function executeBooking(
 
     // Step 2: Check court availability
     console.log(`[BookingExecutor] Checking availability for ${booking.booking_date}...`);
-    const courtData = await gametimeApi.getCourtAvailability(booking.booking_date);
+    const courtData = await gametimeApi.getCourtAvailability(booking.booking_date, booking.user_id);
 
     if (!courtData) {
       throw new Error('Failed to fetch court availability');
@@ -63,12 +63,20 @@ export async function executeBooking(
     const availableSlots = gametimeApi.parseAvailableSlots(courtData, booking.booking_date);
     const durationMinutes = Math.round(booking.duration_hours * 60);
 
+    console.log(`[BookingExecutor] Looking for: Court ${booking.preferred_court}, Time ${booking.booking_time}, Duration ${durationMinutes} min`);
+    console.log(`[BookingExecutor] Available slots:`, availableSlots);
+
     // Find matching slot
     const matchingSlot = availableSlots.find(
-      slot =>
-        (slot.courtNumber === booking.preferred_court || booking.accept_any_court) &&
-        slot.startTime === booking.booking_time &&
-        slot.durationMinutes >= durationMinutes
+      slot => {
+        const matches = (slot.courtNumber === booking.preferred_court || booking.accept_any_court) &&
+          slot.startTime === booking.booking_time &&
+          slot.durationMinutes >= durationMinutes;
+        if (!matches) {
+          console.log(`[BookingExecutor] Slot rejected: Court ${slot.courtNumber} (want ${booking.preferred_court}), Time ${slot.startTime} (want ${booking.booking_time}), Duration ${slot.durationMinutes} (need ${durationMinutes})`);
+        }
+        return matches;
+      }
     );
 
     if (!matchingSlot && !booking.accept_any_court) {
@@ -86,7 +94,8 @@ export async function executeBooking(
       booking.booking_date,
       booking.booking_time,
       durationMinutes,
-      booking.booking_type === 'singles' ? 2 : 4  // Player count based on booking type
+      booking.booking_type === 'singles' ? 2 : 4,  // Player count based on booking type
+      booking.user_id
     );
 
     if (!bookingResult) {
@@ -102,7 +111,7 @@ export async function executeBooking(
     );
 
     // Step 6: Logout
-    await gametimeApi.logout();
+    await gametimeApi.logout(booking.user_id);
 
     return {
       bookingId: booking.id,
@@ -116,7 +125,7 @@ export async function executeBooking(
 
     // Logout on error
     try {
-      await gametimeApi.logout();
+      await gametimeApi.logout(booking.user_id);
     } catch (logoutError) {
       console.warn('[BookingExecutor] Error during logout:', logoutError);
     }

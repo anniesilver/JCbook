@@ -103,14 +103,20 @@ export class GameTimeApiService {
   }
 
   /**
-   * Convert minutes from 6 AM to HH:MM format
-   * 360 minutes = 6:00 AM, 420 = 7:00 AM, etc.
+   * Convert minutes to HH:MM format
+   * Minutes are total minutes from midnight (0:00)
+   * 0 = 00:00 (midnight)
+   * 360 = 06:00 AM
+   * 600 = 10:00 AM
+   * 1020 = 5:00 PM
+   * Values can exceed 1440 (midnight) for courts open past midnight
    */
   private minutesToTime(minutes: number): string {
-    const baseHour = 6;
-    const totalMinutes = baseHour * 60 + minutes;
-    const hours = Math.floor(totalMinutes / 60);
-    const mins = totalMinutes % 60;
+    // Handle wrap-around for times past midnight (past 1440 minutes = 24 hours)
+    const adjustedMinutes = minutes % 1440;
+
+    const hours = Math.floor(adjustedMinutes / 60);
+    const mins = adjustedMinutes % 60;
     return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
   }
 
@@ -120,7 +126,7 @@ export class GameTimeApiService {
    * @param password GameTime password
    * @returns true if successful
    */
-  async login(username: string, password: string): Promise<boolean> {
+  async login(username: string, password: string, userId?: string): Promise<boolean> {
     try {
       console.log('[GameTime] Attempting login with username:', username);
 
@@ -128,6 +134,7 @@ export class GameTimeApiService {
       const response = await this.client.post('/api/gametime/login', {
         username,
         password,
+        userId, // Pass userId so proxy can manage per-user sessions
       });
 
       if (response.data.success) {
@@ -147,9 +154,10 @@ export class GameTimeApiService {
   /**
    * Fetch court availability for a specific date
    * @param date Date in YYYY-MM-DD format
+   * @param userId User ID for per-user session management
    * @returns Court data with bookings and available slots
    */
-  async getCourtAvailability(date: string): Promise<GameTimeCourtData | null> {
+  async getCourtAvailability(date: string, userId?: string): Promise<GameTimeCourtData | null> {
     try {
       if (!this.isAuthenticated) {
         throw new Error('Not authenticated. Please login first.');
@@ -158,7 +166,10 @@ export class GameTimeApiService {
       console.log('[GameTime] Fetching court availability for date:', date);
 
       const response = await this.client.get<GameTimeCourtData>(
-        `/api/gametime/availability/${date}`
+        `/api/gametime/availability/${date}`,
+        {
+          headers: userId ? { 'X-User-ID': userId } : undefined,
+        }
       );
 
       console.log('[GameTime] Court data received');
@@ -226,20 +237,23 @@ export class GameTimeApiService {
           }
 
           if (isAvailable) {
-            slots.push({
+            const slot = {
               courtNumber,
               courtName,
-              startTime: this.minutesToTime(minutes - startTime),
-              endTime: this.minutesToTime(slotEndTime - startTime),
+              startTime: this.minutesToTime(minutes),
+              endTime: this.minutesToTime(slotEndTime),
               durationMinutes: interval,
               available: true,
-            });
+            };
+            slots.push(slot);
+            console.log(`[GameTime] Available slot: Court ${courtNumber}, ${slot.startTime}-${slot.endTime}, ${interval} min`);
           }
         }
       }
     });
 
     console.log(`[GameTime] Found ${slots.length} available slots for ${date}`);
+    console.log('[GameTime] Available slots:', slots);
     return slots;
   }
 
@@ -251,6 +265,7 @@ export class GameTimeApiService {
    * @param startTime Start time in HH:MM format (24-hour)
    * @param durationMinutes Duration in minutes
    * @param numberOfPlayers Number of players
+   * @param userId User ID for per-user session management
    * @returns Confirmation ID if successful, null if failed
    */
   async submitBooking(
@@ -258,7 +273,8 @@ export class GameTimeApiService {
     date: string,
     startTime: string,
     durationMinutes: number,
-    numberOfPlayers: number = 2
+    numberOfPlayers: number = 2,
+    userId?: string
   ): Promise<{ confirmationId: string; actualCourt: number } | null> {
     try {
       if (!this.isAuthenticated) {
@@ -270,13 +286,18 @@ export class GameTimeApiService {
       );
 
       // Call the proxy server to handle booking submission
-      const response = await this.client.post('/api/gametime/booking', {
-        court: courtNumber,
-        date,
-        startTime,
-        durationMinutes,
-        numberOfPlayers,
-      });
+      const response = await this.client.post('/api/gametime/booking',
+        {
+          court: courtNumber,
+          date,
+          startTime,
+          durationMinutes,
+          numberOfPlayers,
+        },
+        {
+          headers: userId ? { 'X-User-ID': userId } : undefined,
+        }
+      );
 
       if (!response.data.success) {
         throw new Error(response.data.error || 'Booking submission failed');
@@ -309,10 +330,13 @@ export class GameTimeApiService {
 
   /**
    * Logout from GameTime
+   * @param userId User ID for per-user session management
    */
-  async logout(): Promise<void> {
+  async logout(userId?: string): Promise<void> {
     try {
-      await this.client.post('/api/gametime/logout');
+      await this.client.post('/api/gametime/logout', {}, {
+        headers: userId ? { 'X-User-ID': userId } : undefined,
+      });
       this.isAuthenticated = false;
       console.log('[GameTime] Logged out');
     } catch (error) {
