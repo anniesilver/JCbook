@@ -89,7 +89,7 @@ export interface AvailableSlot {
  * to avoid CORS issues
  */
 export class GameTimeApiService {
-  private proxyUrl: string = 'http://localhost:3001';
+  private proxyUrl: string = 'http://localhost:3002';
   private client: AxiosInstance;
   private isAuthenticated: boolean = false;
 
