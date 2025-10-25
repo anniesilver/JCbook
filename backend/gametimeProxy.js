@@ -16,11 +16,21 @@ const cors = require('cors');
 const axios = require('axios');
 const http = require('http');
 const https = require('https');
-const { CookieJar } = require('tough-cookie');
-const { wrapper } = require('axios-cookiejar-support');
+const fs = require('fs');
 
 const app = express();
 const PORT = 3001;
+const LOG_FILE = './backend/proxy.log';
+
+// Helper function to log to file and console
+function log(message) {
+  console.log(message);
+  try {
+    fs.appendFileSync(LOG_FILE, message + '\n');
+  } catch (e) {
+    // Fail silently if logging fails
+  }
+}
 
 // Middleware
 app.use(cors());
@@ -33,25 +43,25 @@ const httpAgent = new http.Agent({ keepAlive: true });
 const httpsAgent = new https.Agent({ keepAlive: true });
 
 /**
- * Create a cookie jar for persistent session management
+ * Manual cookie storage (simple string)
+ * Stores cookies returned from GameTime in Set-Cookie headers
  */
-const cookieJar = new CookieJar();
+let sessionCookies = '';
 
 /**
  * Axios instance for GameTime.net API calls
- * Uses cookie jar to maintain session persistence
+ * Manually manage cookies
  */
-const gametimeClient = wrapper(axios.create({
+const gametimeClient = axios.create({
   baseURL: 'https://jct.gametime.net',
   httpAgent: httpAgent,
   httpsAgent: httpsAgent,
-  withCredentials: true, // Enable credentials for cross-domain requests
+  withCredentials: true,
   headers: {
     'X-Requested-With': 'XMLHttpRequest',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
   },
-  jar: cookieJar, // Use cookie jar
-}));
+});
 
 /**
  * POST /api/gametime/login
@@ -78,9 +88,30 @@ app.post('/api/gametime/login', async (req, res) => {
       }
     );
 
-    console.log('[GameTimeProxy] Login successful');
-    console.log('[GameTimeProxy] Response status:', response.status);
-    console.log('[GameTimeProxy] Set-Cookie headers:', response.headers['set-cookie']);
+    // Store cookies from response for future requests
+    log('[GameTimeProxy] Login response status: ' + response.status);
+    log('[GameTimeProxy] All response headers: ' + JSON.stringify(response.headers));
+
+    if (response.headers['set-cookie']) {
+      const setCookieArray = Array.isArray(response.headers['set-cookie'])
+        ? response.headers['set-cookie']
+        : [response.headers['set-cookie']];
+
+      log('[GameTimeProxy] Set-Cookie headers found: ' + setCookieArray.length);
+      setCookieArray.forEach((cookie, i) => {
+        log('[GameTimeProxy] Cookie ' + i + ': ' + cookie);
+      });
+
+      // Extract cookie names and values (before semicolon)
+      sessionCookies = setCookieArray
+        .map(cookie => cookie.split(';')[0])
+        .join('; ');
+
+      log('[GameTimeProxy] ✅ Login successful');
+      log('[GameTimeProxy] Cookies stored: ' + sessionCookies);
+    } else {
+      log('[GameTimeProxy] ⚠️ Login successful but NO Set-Cookie header received');
+    }
 
     return res.json({
       success: true,
@@ -107,27 +138,40 @@ app.get('/api/gametime/availability/:date', async (req, res) => {
       return res.status(400).json({ error: 'Date parameter required (YYYY-MM-DD)' });
     }
 
-    console.log(`[GameTimeProxy] Fetching availability for date: ${date}`);
+    log(`[GameTimeProxy] Fetching availability for date: ${date}`);
+    log(`[GameTimeProxy] Using cookies: ${sessionCookies || 'NONE'}`);
 
     const response = await gametimeClient.get(
       `/scheduling/index/jsoncourtdata/sport/1/date/${date}`,
       {
         headers: {
           'Referer': 'https://jct.gametime.net/scheduling/index/index/sport/1',
+          'Cookie': sessionCookies, // Send stored cookies
         },
       }
     );
 
-    console.log('[GameTimeProxy] Court data received');
-    console.log('[GameTimeProxy] Response status:', response.status);
+    log('[GameTimeProxy] ✅ Court data received');
+    log('[GameTimeProxy] Response status: ' + response.status);
+    log('[GameTimeProxy] Courts count: ' + (response.data.e?.length || 0));
 
     return res.json(response.data);
   } catch (error) {
-    console.error('[GameTimeProxy] Availability error:', error.message || error);
+    log('[GameTimeProxy] ❌ Availability error: ' + error.message);
+    if (error.response) {
+      log('[GameTimeProxy] Response status: ' + error.response.status);
+      log('[GameTimeProxy] Response headers: ' + JSON.stringify(error.response.headers));
+      const respDataStr = JSON.stringify(error.response.data);
+      log('[GameTimeProxy] Response data: ' + respDataStr.substring(0, 500));
+    } else if (error.code) {
+      log('[GameTimeProxy] Error code: ' + error.code);
+    } else {
+      log('[GameTimeProxy] Full error: ' + JSON.stringify(error).substring(0, 500));
+    }
     return res.status(500).json({
       success: false,
       error: 'Failed to fetch court availability',
-      details: error instanceof Error ? error.message : error,
+      details: error.response?.status || error.message,
     });
   }
 });
