@@ -31,10 +31,12 @@ const httpAgent = new http.Agent({ keepAlive: true });
 const httpsAgent = new https.Agent({ keepAlive: true });
 
 /**
- * Manual cookie storage as an object
- * Key: cookie name, Value: cookie value
+ * Session storage
+ * GameTime uses localStorage for NRBA_SESSION, not HTTP cookies
  */
-let sessionCookies = {};
+let sessionData = {
+  nrbaSession: null, // The session token from login
+};
 
 /**
  * Helper function to format cookies object into Cookie header string
@@ -90,37 +92,19 @@ app.post('/api/gametime/login', async (req, res) => {
       }
     );
 
-    // Store cookies from response for future requests
+    // Extract session token from response
     console.log('[LOGIN] Response status: ' + response.status);
-    console.log('[LOGIN] All headers: ' + JSON.stringify(response.headers));
+    console.log('[LOGIN] Response body type: ' + typeof response.data);
 
-    if (response.headers['set-cookie']) {
-      const setCookieArray = Array.isArray(response.headers['set-cookie'])
-        ? response.headers['set-cookie']
-        : [response.headers['set-cookie']];
-
-      console.log('[LOGIN] Set-Cookie headers found: ' + setCookieArray.length);
-
-      // Parse each cookie and store individually
-      setCookieArray.forEach((cookie, i) => {
-        console.log('[LOGIN] Cookie ' + i + ': ' + cookie);
-
-        // Extract name=value before attributes (semicolon)
-        const cookiePart = cookie.split(';')[0];
-        const [cookieName, cookieValue] = cookiePart.split('=');
-
-        if (cookieName && cookieValue) {
-          sessionCookies[cookieName.trim()] = cookieValue.trim();
-          console.log('[LOGIN] Stored: ' + cookieName.trim() + '=' + cookieValue.trim());
-        }
-      });
-
-      const formattedCookies = formatCookieHeader(sessionCookies);
-      console.log('[LOGIN] ✅ Success - ' + Object.keys(sessionCookies).length + ' cookies');
-      console.log('[LOGIN] Formatted: ' + formattedCookies);
-    } else {
-      console.log('[LOGIN] ⚠️ NO Set-Cookie header found!');
-      console.log('[LOGIN] sessionCookies is still empty: ' + Object.keys(sessionCookies).length);
+    // GameTime stores session in response body as NRBA_SESSION (not HTTP cookies)
+    if (response.data && response.data.value) {
+      // The session value is in response.data.value
+      sessionData.nrbaSession = response.data.value;
+      console.log('[LOGIN] ✅ Session token extracted');
+      console.log('[LOGIN] Token (first 50 chars): ' + String(response.data.value).substring(0, 50));
+    } else if (response.data) {
+      console.log('[LOGIN] Response data: ' + JSON.stringify(response.data).substring(0, 200));
+      console.log('[LOGIN] Looking for session token in response...');
     }
 
     return res.json({
@@ -147,26 +131,26 @@ app.get('/api/gametime/availability/:date', async (req, res) => {
     return res.status(400).json({ error: 'Date parameter required (YYYY-MM-DD)' });
   }
 
-  // Check if cookies are available
-  const cookieCount = Object.keys(sessionCookies).length;
-  console.log(`[AVAIL START] Date: ${date}, Cookies: ${cookieCount}`);
-  console.log('[AVAIL] sessionCookies object keys:', Object.keys(sessionCookies));
-  console.log('[AVAIL] sessionCookies values:', sessionCookies);
+  // Check if we have session token
+  console.log(`[AVAIL START] Date: ${date}`);
+  console.log('[AVAIL] Session token exists: ' + !!sessionData.nrbaSession);
 
-  // Format cookies into proper header string
-  const cookieHeader = formatCookieHeader(sessionCookies);
-  console.log(`[AVAIL] Formatted cookie header: "${cookieHeader}"`);
+  if (!sessionData.nrbaSession) {
+    console.log('[AVAIL] ⚠️ No session token - user not authenticated');
+    return res.status(401).json({
+      success: false,
+      error: 'Not authenticated - please login first',
+    });
+  }
 
   const headers = {
     'Referer': 'https://jct.gametime.net/scheduling/index/index/sport/1',
     'Accept': 'application/json, text/plain, */*',
+    // Try sending session as cookie
+    'Cookie': 'NRBA_SESSION=' + sessionData.nrbaSession,
   };
 
-  if (cookieHeader) {
-    headers['Cookie'] = cookieHeader;
-  }
-
-  console.log('[AVAIL] Final request headers:', JSON.stringify(headers));
+  console.log('[AVAIL] Headers: Referer, Accept, Cookie');
   console.log('[AVAIL] About to call GameTime API...');
 
   try {
