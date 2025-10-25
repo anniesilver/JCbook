@@ -35,11 +35,10 @@ const gametimeClient: AxiosInstance = axios.create({
 });
 
 /**
- * Store session cookies per user
- * Structure: { userId: { cookieName: cookieValue, ... }, ... }
- * This allows multiple users to have separate sessions without overwriting each other
+ * Store session cookies as an object for proper management
+ * Key: cookie name, Value: cookie value
  */
-let userSessions: { [userId: string]: { [cookieName: string]: string } } = {};
+let sessionCookies: { [key: string]: string } = {};
 
 /**
  * Helper function to format cookies object into Cookie header string
@@ -53,21 +52,16 @@ function formatCookieHeader(cookiesObj: { [key: string]: string }): string {
 /**
  * POST /api/gametime/login
  * Authenticates with GameTime.net
- * Body: { username, password, userId }
  */
 app.post('/api/gametime/login', async (req: Request, res: Response) => {
   try {
-    const { username, password, userId } = req.body;
+    const { username, password } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password required' });
     }
 
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID required' });
-    }
-
-    console.log(`[GameTimeProxy] Attempting login for user: ${username} (userId: ${userId})`);
+    console.log(`[GameTimeProxy] Attempting login for user: ${username}`);
 
     const response = await gametimeClient.post(
       '/auth',
@@ -79,21 +73,16 @@ app.post('/api/gametime/login', async (req: Request, res: Response) => {
       }
     );
 
-    // Initialize or get user's session storage
-    if (!userSessions[userId]) {
-      userSessions[userId] = {};
-    }
-
-    // Store cookies for this user
+    // Store cookies for future requests
     const setCookieHeader = response.headers['set-cookie'];
     if (setCookieHeader) {
       const setCookieArray = Array.isArray(setCookieHeader)
         ? setCookieHeader
         : [setCookieHeader];
 
-      console.log(`[GameTimeProxy] Found ${setCookieArray.length} Set-Cookie headers for user ${userId}`);
+      console.log(`[GameTimeProxy] Found ${setCookieArray.length} Set-Cookie headers`);
 
-      // Parse each cookie and store individually for this user
+      // Parse each cookie and store individually
       setCookieArray.forEach((cookie, index) => {
         console.log(`[GameTimeProxy] Cookie ${index}: ${cookie}`);
 
@@ -102,17 +91,17 @@ app.post('/api/gametime/login', async (req: Request, res: Response) => {
         const [cookieName, cookieValue] = cookiePart.split('=');
 
         if (cookieName && cookieValue) {
-          userSessions[userId][cookieName.trim()] = cookieValue.trim();
-          console.log(`[GameTimeProxy] Stored for user ${userId}: ${cookieName.trim()}=${cookieValue.trim()}`);
+          sessionCookies[cookieName.trim()] = cookieValue.trim();
+          console.log(`[GameTimeProxy] Stored: ${cookieName.trim()}=${cookieValue.trim()}`);
         }
       });
 
-      const cookieHeader = formatCookieHeader(userSessions[userId]);
-      console.log(`[GameTimeProxy] Total cookies for user ${userId}: ${Object.keys(userSessions[userId]).length}`);
+      const cookieHeader = formatCookieHeader(sessionCookies);
+      console.log(`[GameTimeProxy] Total cookies: ${Object.keys(sessionCookies).length}`);
       console.log(`[GameTimeProxy] Cookie header: ${cookieHeader}`);
     }
 
-    console.log(`[GameTimeProxy] Login successful for user ${userId}`);
+    console.log('[GameTimeProxy] Login successful');
 
     return res.json({
       success: true,
@@ -130,33 +119,25 @@ app.post('/api/gametime/login', async (req: Request, res: Response) => {
 /**
  * GET /api/gametime/availability/:date
  * Fetches court availability for a specific date
- * Header: X-User-ID (required to identify which user's session to use)
  */
 app.get('/api/gametime/availability/:date', async (req: Request, res: Response) => {
   try {
     const { date } = req.params;
-    const userId = req.headers['x-user-id'] as string;
 
     if (!date) {
       return res.status(400).json({ error: 'Date parameter required (YYYY-MM-DD)' });
     }
 
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID required (X-User-ID header)' });
-    }
-
-    const userCookies = userSessions[userId] || {};
-    const cookieCount = Object.keys(userCookies).length;
-
-    console.log(`[GameTimeProxy] Fetching availability for user ${userId}, date: ${date}`);
-    console.log(`[GameTimeProxy] Available cookies for this user: ${cookieCount}`);
+    const cookieCount = Object.keys(sessionCookies).length;
+    console.log(`[GameTimeProxy] Fetching availability for date: ${date}`);
+    console.log(`[GameTimeProxy] Available cookies: ${cookieCount}`);
 
     if (cookieCount === 0) {
-      console.warn(`[GameTimeProxy] WARNING: No cookies for user ${userId} - user may not be authenticated`);
+      console.warn('[GameTimeProxy] WARNING: No cookies available - user may not be authenticated');
     }
 
     // Format cookies into proper header
-    const cookieHeader = formatCookieHeader(userCookies);
+    const cookieHeader = formatCookieHeader(sessionCookies);
     console.log(`[GameTimeProxy] Sending Cookie header: ${cookieHeader || '(empty)'}`);
 
     const requestHeaders: any = {
@@ -172,7 +153,7 @@ app.get('/api/gametime/availability/:date', async (req: Request, res: Response) 
       headers: requestHeaders,
     });
 
-    console.log(`[GameTimeProxy] Court data received for user ${userId}`);
+    console.log('[GameTimeProxy] Court data received');
     console.log(`[GameTimeProxy] Courts returned: ${response.data.e?.length || 0}`);
 
     return res.json(response.data);
@@ -196,7 +177,6 @@ app.get('/api/gametime/availability/:date', async (req: Request, res: Response) 
 /**
  * POST /api/gametime/booking
  * Submits a booking to GameTime
- * Header: X-User-ID (required)
  *
  * Request body:
  * {
@@ -210,7 +190,6 @@ app.get('/api/gametime/availability/:date', async (req: Request, res: Response) 
 app.post('/api/gametime/booking', async (req: Request, res: Response) => {
   try {
     const { court, date, startTime, durationMinutes, numberOfPlayers } = req.body;
-    const userId = req.headers['x-user-id'] as string;
 
     if (!court || !date || !startTime || !durationMinutes || !numberOfPlayers) {
       return res.status(400).json({
@@ -218,12 +197,8 @@ app.post('/api/gametime/booking', async (req: Request, res: Response) => {
       });
     }
 
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID required (X-User-ID header)' });
-    }
-
     console.log(
-      `[GameTimeProxy] Submitting booking for user ${userId}: Court ${court}, ${date} at ${startTime}, ${durationMinutes} min`
+      `[GameTimeProxy] Submitting booking: Court ${court}, ${date} at ${startTime}, ${durationMinutes} min`
     );
 
     // Convert start time to minutes from 6 AM
@@ -239,23 +214,19 @@ app.post('/api/gametime/booking', async (req: Request, res: Response) => {
       players: numberOfPlayers,
     };
 
-    // Get this user's cookies
-    const userCookies = userSessions[userId] || {};
+    // Submit to GameTime
+    // NOTE: The actual endpoint may vary - this is a placeholder
+    const cookieHeader = formatCookieHeader(sessionCookies);
     const bookingHeaders: any = {};
-
-    if (Object.keys(userCookies).length > 0) {
-      const cookieHeader = formatCookieHeader(userCookies);
+    if (cookieHeader) {
       bookingHeaders['Cookie'] = cookieHeader;
-      console.log(`[GameTimeProxy] Using cookies for user ${userId}`);
-    } else {
-      console.warn(`[GameTimeProxy] WARNING: No cookies found for user ${userId}`);
     }
 
     const response = await gametimeClient.post('/scheduling/index/submitbooking', bookingData, {
       headers: bookingHeaders,
     });
 
-    console.log(`[GameTimeProxy] Booking submitted successfully for user ${userId}`);
+    console.log('[GameTimeProxy] Booking submitted successfully');
 
     return res.json({
       success: true,
@@ -278,19 +249,11 @@ app.post('/api/gametime/booking', async (req: Request, res: Response) => {
  */
 app.post('/api/gametime/logout', async (req: Request, res: Response) => {
   try {
-    const userId = req.headers['x-user-id'] as string;
+    console.log('[GameTimeProxy] Logging out');
 
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID required (X-User-ID header)' });
-    }
-
-    console.log(`[GameTimeProxy] Logging out user ${userId}`);
-
-    const userCookies = userSessions[userId] || {};
+    const cookieHeader = formatCookieHeader(sessionCookies);
     const logoutHeaders: any = {};
-
-    if (Object.keys(userCookies).length > 0) {
-      const cookieHeader = formatCookieHeader(userCookies);
+    if (cookieHeader) {
       logoutHeaders['Cookie'] = cookieHeader;
     }
 
@@ -298,16 +261,12 @@ app.post('/api/gametime/logout', async (req: Request, res: Response) => {
       headers: logoutHeaders,
     });
 
-    console.log(`[GameTimeProxy] Logged out user ${userId} successfully`);
+    console.log('[GameTimeProxy] Logged out successfully');
   } catch (error) {
     console.error('[GameTimeProxy] Logout error:', error instanceof Error ? error.message : error);
   } finally {
-    // Clear cookies for this user only
-    const userId = req.headers['x-user-id'] as string;
-    if (userId && userSessions[userId]) {
-      delete userSessions[userId];
-      console.log(`[GameTimeProxy] Cleared session for user ${userId}`);
-    }
+    // Clear cookies after logout attempt (success or failure)
+    sessionCookies = {};
     return res.json({ success: true });
   }
 });

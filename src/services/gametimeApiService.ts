@@ -134,7 +134,6 @@ export class GameTimeApiService {
       const response = await this.client.post('/api/gametime/login', {
         username,
         password,
-        userId, // Pass userId so proxy can manage per-user sessions
       });
 
       if (response.data.success) {
