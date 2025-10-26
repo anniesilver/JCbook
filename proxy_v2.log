@@ -1,7 +1,0 @@
-[LOGIN] Attempting login for annieyang
-[STARTUP] Proxy listening on port 3002
-[LOGIN] Response status: 200
-[LOGIN] Response data type: object
-[LOGIN] Full response written to login_response_v2.json
-[LOGIN] ⚠️  Token NOT found in response
-[LOGIN] Response keys: code, msg, isStaff, user
