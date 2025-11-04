@@ -274,6 +274,7 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
 
   const [validationError, setValidationError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [agreedToKeepOpen, setAgreedToKeepOpen] = useState(false);
 
   // Date picker state
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -585,12 +586,37 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
           </View>
         </View>
 
+        {/* Keep-Awake Disclaimer */}
+        <View style={styles.disclaimerContainer}>
+          <View style={styles.checkboxRow}>
+            <CheckBox
+              value={agreedToKeepOpen}
+              onValueChange={setAgreedToKeepOpen}
+              style={styles.checkbox}
+            />
+            <View style={styles.disclaimerTextContainer}>
+              <ThemedText style={styles.disclaimerText}>
+                I understand I must keep this app open until the booking executes at the scheduled time
+              </ThemedText>
+            </View>
+          </View>
+          <View style={styles.disclaimerInfo}>
+            <ThemedText style={styles.disclaimerInfoText}>
+              The app will automatically execute your booking at 8:00 AM on the scheduled date. Keep your device charged and connected to the internet.
+            </ThemedText>
+          </View>
+        </View>
+
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
-            style={[styles.button, styles.submitButton, isLoading && styles.buttonDisabled]}
+            style={[
+              styles.button,
+              styles.submitButton,
+              (isLoading || !agreedToKeepOpen) && styles.buttonDisabled
+            ]}
             onPress={handleSubmit}
-            disabled={isLoading}
+            disabled={isLoading || !agreedToKeepOpen}
           >
             {isLoading ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -854,5 +880,35 @@ const styles = StyleSheet.create({
   radioSelected: {
     borderColor: '#4CAF50',
     backgroundColor: '#4CAF50',
+  },
+  disclaimerContainer: {
+    backgroundColor: '#FFF8DC',
+    padding: 16,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FFA500',
+    marginBottom: 16,
+    gap: 12,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  disclaimerTextContainer: {
+    flex: 1,
+  },
+  disclaimerText: {
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+  },
+  disclaimerInfo: {
+    paddingLeft: 32,
+  },
+  disclaimerInfoText: {
+    fontSize: 13,
+    opacity: 0.8,
+    lineHeight: 18,
   },
 });

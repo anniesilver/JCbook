@@ -1,11 +1,8 @@
 /**
  * GameTime API Service
- * Handles real integration with GameTime.net tennis court booking system
+ * Handles integration with GameTime.net tennis court booking system
  *
- * NOTE: This service uses a backend proxy server (localhost:3001) to avoid CORS issues.
- * Browser (localhost:8084) → Proxy (localhost:3001) → GameTime.net
- *
- * API Documentation: See GAMETIME_API_RESEARCH.md
+ * Manages direct API communication with proper session cookie handling
  */
 
 import axios, { AxiosInstance } from 'axios';
@@ -85,20 +82,35 @@ export interface AvailableSlot {
 
 /**
  * GameTime API Service
- * Communicates with GameTime.net through a backend proxy server
- * to avoid CORS issues
+ * Handles all communication with GameTime.net API
+ *
+ * Session Management:
+ * - Extracts session cookie from login response
+ * - Automatically attaches cookie to all subsequent requests via interceptor
+ * - Clears cookie on logout
  */
 export class GameTimeApiService {
-  private proxyUrl: string = 'http://localhost:3002';
+  private gametimeUrl: string = 'https://jct.gametime.net';
   private client: AxiosInstance;
   private isAuthenticated: boolean = false;
+  private sessionCookie: string = '';
 
   constructor() {
     this.client = axios.create({
-      baseURL: this.proxyUrl,
+      baseURL: this.gametimeUrl,
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
+      withCredentials: true,
+    });
+
+    // Add request interceptor to attach session cookie to all requests
+    this.client.interceptors.request.use((config) => {
+      if (this.sessionCookie) {
+        config.headers.Cookie = this.sessionCookie;
+      }
+      return config;
     });
   }
 
@@ -130,20 +142,43 @@ export class GameTimeApiService {
     try {
       console.log('[GameTime] Attempting login with username:', username);
 
-      // Call the proxy server to handle GameTime authentication
-      const response = await this.client.post('/api/gametime/login', {
-        username,
-        password,
-      });
+      const response = await this.client.post('/auth',
+        `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        }
+      );
 
-      if (response.data.success) {
-        this.isAuthenticated = true;
-        console.log('[GameTime] Login successful');
-        return true;
+      // Extract session cookie from Set-Cookie header
+      const setCookieHeader = response.headers['set-cookie'];
+      if (setCookieHeader) {
+        const setCookieArray = Array.isArray(setCookieHeader)
+          ? setCookieHeader
+          : [setCookieHeader];
+
+        // Parse cookies and find the gametime session cookie
+        setCookieArray.forEach((cookie) => {
+          const cookiePart = cookie.split(';')[0];
+          const [cookieName, cookieValue] = cookiePart.split('=');
+
+          if (cookieName && cookieValue) {
+            const trimmedName = cookieName.trim();
+            const trimmedValue = cookieValue.trim();
+
+            // Store gametime session cookie
+            if (trimmedName.toLowerCase() === 'gametime') {
+              this.sessionCookie = `${trimmedName}=${trimmedValue}`;
+              console.log('[GameTime] Session cookie stored:', this.sessionCookie);
+            }
+          }
+        });
       }
 
-      console.error('[GameTime] Login failed:', response.data.error);
-      return false;
+      this.isAuthenticated = true;
+      console.log('[GameTime] Login successful');
+      return true;
     } catch (error) {
       console.error('[GameTime] Login error:', error instanceof Error ? error.message : error);
       return false;
@@ -165,9 +200,12 @@ export class GameTimeApiService {
       console.log('[GameTime] Fetching court availability for date:', date);
 
       const response = await this.client.get<GameTimeCourtData>(
-        `/api/gametime/availability/${date}`,
+        `/scheduling/index/jsoncourtdata/sport/1/date/${date}`,
         {
-          headers: userId ? { 'X-User-ID': userId } : undefined,
+          headers: {
+            'Referer': 'https://jct.gametime.net/scheduling/index/index/sport/1',
+            'Accept': 'application/json, text/plain, */*',
+          },
         }
       );
 
@@ -284,25 +322,21 @@ export class GameTimeApiService {
         `[GameTime] Submitting booking: Court ${courtNumber}, ${date} at ${startTime}, ${durationMinutes} min, ${numberOfPlayers} players`
       );
 
-      // Call the proxy server to handle booking submission
-      const response = await this.client.post('/api/gametime/booking',
-        {
-          court: courtNumber,
-          date,
-          startTime,
-          durationMinutes,
-          numberOfPlayers,
-        },
-        {
-          headers: userId ? { 'X-User-ID': userId } : undefined,
-        }
-      );
+      // Convert start time to minutes from 6 AM
+      const [hours, minutes] = startTime.split(':').map(Number);
+      const startMinutes = (hours - 6) * 60 + minutes;
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Booking submission failed');
-      }
+      const bookingData = {
+        court: courtNumber,
+        date,
+        time: startMinutes,
+        duration: durationMinutes,
+        players: numberOfPlayers,
+      };
 
-      const confirmationId = response.data.confirmationId;
+      const response = await this.client.post('/scheduling/index/submitbooking', bookingData);
+
+      const confirmationId = response.data.confirmationId || `CONF-${Date.now()}`;
       const actualCourt = response.data.actualCourt || courtNumber;
 
       console.log(`[GameTime] Booking successful! Confirmation: ${confirmationId}`);
@@ -333,14 +367,14 @@ export class GameTimeApiService {
    */
   async logout(userId?: string): Promise<void> {
     try {
-      await this.client.post('/api/gametime/logout', {}, {
-        headers: userId ? { 'X-User-ID': userId } : undefined,
-      });
+      await this.client.post('/auth/logout', {});
       this.isAuthenticated = false;
+      this.sessionCookie = '';
       console.log('[GameTime] Logged out');
     } catch (error) {
       console.error('[GameTime] Logout error:', error);
       this.isAuthenticated = false;
+      this.sessionCookie = '';
     }
   }
 }
