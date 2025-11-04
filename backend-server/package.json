@@ -1,0 +1,23 @@
+{
+  "name": "jc-booking-server",
+  "version": "1.0.0",
+  "description": "Windows PC server for JC court booking automation",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test-booking.js"
+  },
+  "keywords": [
+    "court-booking",
+    "automation",
+    "playwright",
+    "gametime"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.76.1",
+    "playwright": "^1.56.1",
+    "dotenv": "^16.4.7"
+  }
+}

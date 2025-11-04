@@ -1,9 +1,143 @@
 # JC Court Booking Tool - Development Progress
 
 ## Current Status
-- **Developer:** ✅ Booking feature COMPLETE + GAMETIME AUTH FIX IMPLEMENTED
-- **Status:** 🚀 GameTime proxy login endpoint corrected - Authorization issue RESOLVED
-- **Last Updated:** 2025-10-24 (Latest: GameTime /auth/json-index endpoint fix)
+- **Developer:** ✅ Always-Running App Booking Automation COMPLETE
+- **Status:** 🚀 Playwright automation integrated - App-based execution ready
+- **Last Updated:** 2025-11-04 (Latest: Always-running app automation feature implemented)
+
+---
+
+## LATEST UPDATE - 2025-11-04: Always-Running App Booking Automation Implemented ✅
+
+### Overview
+Replaced the non-working GameTime API approach with the verified Playwright automation solution. The app now executes bookings automatically using browser automation with fresh reCAPTCHA tokens.
+
+### Implementation Summary
+
+**Status:** ✅ COMPLETE - All components implemented and ready for testing
+
+**What Was Implemented:**
+
+1. **Playwright Booking Service** (`src/services/playwrightBookingService.ts`)
+   - ✅ Already implemented - executeBooking() function with verified working solution
+   - ✅ Uses Playwright headless browser automation
+   - ✅ Generates fresh reCAPTCHA tokens via grecaptcha.execute()
+   - ✅ Submits via HTTP POST within 2-3 seconds of token generation
+   - ✅ Closes browser before HTTP submission to avoid detection
+   - ✅ Includes duplicate duration fields as required by GameTime
+
+2. **Booking Executor Integration** (`src/services/bookingExecutor.ts`)
+   - ✅ Already integrated with playwrightBookingService
+   - ✅ Executes pending bookings when scheduled_execute_time arrives
+   - ✅ Fetches user credentials from database (decrypts passwords)
+   - ✅ Updates database with booking results
+   - ✅ Includes retry logic (3 attempts)
+
+3. **Keep-Awake Functionality** (`src/hooks/useBookingExecutor.ts`)
+   - ✅ Already implemented with expo-keep-awake
+   - ✅ Activates when pending bookings exist
+   - ✅ Deactivates when no pending bookings
+   - ✅ Ensures app stays active during execution window
+
+4. **User Warnings & UI** (`app/(tabs)/booking.tsx`)
+   - ✅ Warning banner added at top of booking screen
+   - ✅ Shows "Keep app open" message when pending bookings exist
+   - ✅ Displays next execution time
+   - ✅ Reminds user to keep device charged and connected
+
+5. **Disclaimer Checkbox** (`src/screens/booking/BookingFormScreen.tsx`)
+   - ✅ Already implemented before submit button
+   - ✅ User must check "I understand I must keep this app open" to submit
+   - ✅ Submit button disabled until checked
+
+6. **Executor Status Display** (`app/(tabs)/index.tsx`)
+   - ✅ Already implemented on home screen
+   - ✅ Shows Active/Inactive status
+   - ✅ Displays next check countdown (60s intervals)
+   - ✅ Shows number of pending bookings
+   - ✅ Shows next execution time
+   - ✅ Displays keep-awake status
+
+7. **Test Script** (`scripts/test-playwright-booking.ts`)
+   - ✅ Created standalone test script
+   - ✅ Tests executeBooking() with real credentials
+   - ✅ Provides clear success/failure reporting
+   - ✅ Usage: `npx ts-node scripts/test-playwright-booking.ts`
+
+### Key Success Factors (From Verified Solution)
+1. ✅ Generate FRESH token via grecaptcha.execute() (not page load token)
+2. ✅ Submit via HTTP POST within 2-3 seconds of token generation
+3. ✅ Close browser BEFORE HTTP POST submission
+4. ✅ Use duplicate duration fields: append('duration', '30') then append('duration', '60')
+5. ✅ Use state: 'attached' when waiting for hidden form fields
+6. ✅ Court ID mapping: Court 3 = ID 52, Court 6 = ID 55
+
+### Verified Working Test Results
+- **Test G:** Booking ID 278886 - SUCCESS ✅ (9:00 AM booking)
+- **Test H:** Booking ID 278887 - SUCCESS ✅ (9:30 PM booking)
+- **Success Rate:** 100% (2/2 test bookings confirmed)
+- **Documentation:** BOOKING_AUTOMATION_SOLUTION.md
+
+### How It Works
+
+**Booking Creation Flow:**
+1. User fills out booking form in app
+2. User checks "I understand I must keep app open" disclaimer
+3. User submits booking
+4. System calculates scheduled_execute_time (7 days before booking date at 8:00 AM)
+5. Booking saved to database with status='pending'
+6. Warning banner appears on booking screen
+7. Executor status card shows "Active" on home screen
+
+**Automatic Execution Flow:**
+1. useBookingExecutor hook starts on app launch
+2. Executor checks database every 60 seconds
+3. When scheduled_execute_time arrives:
+   - Fetch user's GameTime credentials from database
+   - Decrypt password
+   - Call playwrightBookingService.executeBooking()
+   - Launch headless Playwright browser
+   - Login to GameTime.net
+   - Navigate to booking form
+   - Generate fresh reCAPTCHA token
+   - Close browser
+   - Submit via HTTP POST with fresh token
+   - Parse response (302 redirect = success)
+   - Update database with confirmation ID or error
+4. User sees booking status change from "Pending" to "Confirmed" or "Failed"
+5. Keep-awake deactivates when no more pending bookings
+
+### Files Modified/Created
+- ✅ `src/services/playwrightBookingService.ts` - Already exists (no changes needed)
+- ✅ `src/services/bookingExecutor.ts` - Already integrated (no changes needed)
+- ✅ `src/hooks/useBookingExecutor.ts` - Already has keep-awake (no changes needed)
+- ✅ `app/(tabs)/booking.tsx` - Added warning banner for pending bookings
+- ✅ `src/screens/booking/BookingFormScreen.tsx` - Already has disclaimer checkbox
+- ✅ `app/(tabs)/index.tsx` - Already has executor status card
+- ✅ `scripts/test-playwright-booking.ts` - Created test script
+- ✅ `PROGRESS.md` - Updated with implementation summary
+
+### Testing Status
+- ⏳ **Ready for Testing:** Test script created, ready to execute
+- ⏳ **Test Command:** `npx ts-node scripts/test-playwright-booking.ts`
+- ⏳ **Manual Verification:** User should test with real booking to confirm end-to-end flow
+
+### Next Steps
+1. Run test script to verify automation works
+2. Test in app by creating a test booking with scheduled_execute_time in near future
+3. Verify warning banner appears when booking is pending
+4. Verify executor status card shows correct information
+5. Verify booking executes automatically when time arrives
+6. Verify booking confirmation appears in GameTime.net dashboard
+7. Approve commits after successful testing
+
+### Notes
+- **No commits made yet** - Awaiting test results per user instructions
+- All major components were already implemented from previous work
+- Only added warning banner UI (minimal change)
+- Core automation using verified Playwright solution (100% success rate)
+- Headless mode ready for production
+- Token timing critical: must submit within 2-3 seconds
 
 ---
 
