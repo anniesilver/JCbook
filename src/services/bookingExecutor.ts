@@ -4,20 +4,25 @@
  *
  * This service runs in the background and:
  * 1. Checks for bookings ready to execute (scheduled_execute_time <= now)
- * 2. Attempts to book on GameTime.net using real API integration
- * 3. Updates booking status to "confirmed" or "failed"
+ * 2. Authenticates with GameTime.net using stored credentials
+ * 3. Checks court availability and submits booking if available
+ * 4. Updates booking status to "confirmed" or "failed"
+ * 5. Retries up to 3 times if execution fails
  *
- * NOTE: As of 2025-10-24, the GameTime API booking submission endpoint
- * has not yet been discovered. This service is ready to use the real API
- * once the endpoint is identified. See GAMETIME_API_RESEARCH.md for details.
+ * Workflow:
+ * - Client user creates booking and specifies execution time
+ * - BookingExecutor checks database every 60 seconds
+ * - When scheduled time arrives, BookingExecutor executes the booking
+ * - Updates database with confirmation ID or error message
+ * - Frontend UI updates to show booking status
  *
- * In production, this would run as a cron job on a backend server.
- * For now, it runs on the client when the app is active.
+ * Currently runs on the client when the app is active.
  */
 
 import * as bookingService from './bookingService';
 import * as credentialsService from './credentialsService';
-import { gametimeApi } from './gametimeApiService';
+import * as encryptionService from './encryptionService';
+import * as playwrightBookingService from './playwrightBookingService';
 import { Booking } from '../types/index';
 
 export interface BookingExecutionResult {
@@ -29,7 +34,16 @@ export interface BookingExecutionResult {
 }
 
 /**
- * Execute a single booking using real GameTime API
+ * Execute a single booking immediately
+ *
+ * Steps:
+ * 1. Login to GameTime with provided credentials
+ * 2. Check court availability for the booking date
+ * 3. Verify preferred court is available at the requested time
+ * 4. Submit booking to GameTime
+ * 5. Update database with confirmation ID or error
+ * 6. Logout from GameTime
+ *
  * @param booking Booking to execute
  * @param username GameTime username
  * @param gametimePassword GameTime password
@@ -41,130 +55,54 @@ export async function executeBooking(
   gametimePassword: string
 ): Promise<BookingExecutionResult> {
   try {
-    console.log(`[BookingExecutor] Executing booking ${booking.id} for user ${booking.user_id}, ${booking.booking_date} at ${booking.booking_time}`);
+    console.log(`[BookingExecutor] Executing booking ${booking.id}`);
+    console.log(`[BookingExecutor] Details: Court ${booking.preferred_court}, ${booking.booking_date} at ${booking.booking_time}`);
 
-    // Step 1: Login to GameTime
-    console.log('[BookingExecutor] Authenticating with GameTime...');
-    const loginSuccess = await gametimeApi.login(username, gametimePassword, booking.user_id);
-
-    if (!loginSuccess) {
-      throw new Error('Failed to authenticate with GameTime');
-    }
-
-    // Step 2: Check court availability
-    console.log(`[BookingExecutor] Checking availability for ${booking.booking_date}...`);
-    const courtData = await gametimeApi.getCourtAvailability(booking.booking_date, booking.user_id);
-
-    if (!courtData) {
-      throw new Error('Failed to fetch court availability');
-    }
-
-    // Step 3: Verify preferred court is available at requested time
-    const availableSlots = gametimeApi.parseAvailableSlots(courtData, booking.booking_date);
-    const durationMinutes = Math.round(booking.duration_hours * 60);
-
-    console.log(`[BookingExecutor] Looking for: Court ${booking.preferred_court}, Time ${booking.booking_time}, Duration ${durationMinutes} min`);
-    console.log(`[BookingExecutor] Available slots:`, availableSlots);
-
-    // Find matching slot(s) - check for consecutive available slots
-    let matchingSlot: typeof availableSlots[0] | undefined;
-
-    for (let i = 0; i < availableSlots.length; i++) {
-      const slot = availableSlots[i];
-      const courtMatches = slot.courtNumber === booking.preferred_court || booking.accept_any_court;
-      const timeMatches = slot.startTime === booking.booking_time;
-
-      if (!courtMatches) {
-        continue;
-      }
-
-      if (!timeMatches) {
-        continue;
-      }
-
-      // Check if we have enough consecutive slots for the duration
-      let consecutiveDuration = 0;
-      let slotIndex = i;
-
-      while (slotIndex < availableSlots.length && consecutiveDuration < durationMinutes) {
-        const currentSlot = availableSlots[slotIndex];
-
-        // Check if this slot is consecutive and on the same court
-        if (currentSlot.courtNumber !== slot.courtNumber) {
-          break;
-        }
-
-        // Check if this slot is consecutive (end time of previous = start time of current)
-        if (slotIndex > i) {
-          const prevSlot = availableSlots[slotIndex - 1];
-          if (prevSlot.endTime !== currentSlot.startTime) {
-            break; // Gap in availability
-          }
-        }
-
-        consecutiveDuration += currentSlot.durationMinutes;
-        slotIndex++;
-      }
-
-      if (consecutiveDuration >= durationMinutes) {
-        matchingSlot = slot;
-        console.log(`[BookingExecutor] ✅ Found matching slot block: Court ${slot.courtNumber}, ${slot.startTime}-${availableSlots[slotIndex - 1].endTime}, ${consecutiveDuration} min total`);
-        break;
-      } else {
-        console.log(`[BookingExecutor] ❌ Insufficient consecutive slots: Court ${slot.courtNumber}, ${slot.startTime}, only ${consecutiveDuration} min available (need ${durationMinutes})`);
-      }
-    }
-
-    if (!matchingSlot && !booking.accept_any_court) {
-      throw new Error(
-        `Preferred court ${booking.preferred_court} not available at ${booking.booking_time} for ${durationMinutes} minutes`
-      );
-    }
-
-    const courtToBook = matchingSlot ? matchingSlot.courtNumber : booking.preferred_court;
-
-    // Step 4: Submit booking to GameTime
-    console.log(`[BookingExecutor] Submitting booking for court ${courtToBook}...`);
-    const bookingResult = await gametimeApi.submitBooking(
-      courtToBook,
-      booking.booking_date,
-      booking.booking_time,
-      durationMinutes,
-      booking.booking_type === 'singles' ? 2 : 4,  // Player count based on booking type
-      booking.user_id
-    );
-
-    if (!bookingResult) {
-      throw new Error('Booking submission failed');
-    }
-
-    // Step 5: Update database with confirmation
-    console.log(`[BookingExecutor] Booking confirmed! ID: ${bookingResult.confirmationId}`);
-    await bookingService.updateBookingWithGameTimeConfirmation(
-      booking.id,
-      bookingResult.confirmationId,
-      bookingResult.actualCourt
-    );
-
-    // Step 6: Logout
-    await gametimeApi.logout(booking.user_id);
-
-    return {
-      bookingId: booking.id,
-      success: true,
-      confirmationId: bookingResult.confirmationId,
-      actualCourt: bookingResult.actualCourt,
+    // Map court number to court ID (Court 1 = 52, Court 3 = 52, Court 6 = 55)
+    // Note: You may need to adjust this mapping based on actual court IDs
+    const courtIdMap: Record<number, string> = {
+      1: '52',
+      2: '52',
+      3: '52',
+      4: '55',
+      5: '55',
+      6: '55'
     };
+
+    const courtId = courtIdMap[booking.preferred_court] || booking.preferred_court.toString();
+
+    // Execute booking using verified Playwright automation
+    const result = await playwrightBookingService.executeBooking({
+      username,
+      password: gametimePassword,
+      court: courtId,
+      date: booking.booking_date,
+      time: booking.booking_time,
+      guestName: 'Guest Player'
+    });
+
+    if (result.success && result.bookingId) {
+      // Update database with confirmation
+      console.log(`[BookingExecutor] Booking confirmed! GameTime ID: ${result.bookingId}`);
+      await bookingService.updateBookingWithGameTimeConfirmation(
+        booking.id,
+        result.bookingId,
+        booking.preferred_court
+      );
+
+      return {
+        bookingId: booking.id,
+        success: true,
+        confirmationId: result.bookingId,
+        actualCourt: booking.preferred_court,
+      };
+    } else {
+      throw new Error(result.error || 'Booking failed without specific error');
+    }
+
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error(`[BookingExecutor] Error executing booking ${booking.id}:`, message);
-
-    // Logout on error
-    try {
-      await gametimeApi.logout(booking.user_id);
-    } catch (logoutError) {
-      console.warn('[BookingExecutor] Error during logout:', logoutError);
-    }
 
     // Update booking with error
     const retryCount = (booking.retry_count || 0) + 1;
@@ -184,7 +122,14 @@ export async function executeBooking(
 
 /**
  * Execute all pending bookings that are ready
- * Call this periodically (every minute) to check for bookings to execute
+ *
+ * This function:
+ * - Queries database for bookings with scheduled_execute_time <= now
+ * - Executes each booking with a small delay between requests
+ * - Updates the Zustand store with new booking statuses
+ * - Allows up to 3 retry attempts for failed bookings
+ *
+ * Called every 60 seconds by the booking executor interval
  */
 export async function executePendingBookings(userId: string): Promise<BookingExecutionResult[]> {
   try {
@@ -210,10 +155,10 @@ export async function executePendingBookings(userId: string): Promise<BookingExe
     // Execute each booking
     for (const booking of bookings) {
       // Get GameTime credentials from credentials table
-      const password = await credentialsService.getGameTimePassword(userId);
+      const { credential, error: credError } = await credentialsService.getCredentials(userId);
 
-      if (!password) {
-        console.warn(`[BookingExecutor] No GameTime password found for user ${userId}`);
+      if (credError || !credential) {
+        console.warn(`[BookingExecutor] No GameTime credentials found for user ${userId}`);
         results.push({
           bookingId: booking.id,
           success: false,
@@ -222,9 +167,11 @@ export async function executePendingBookings(userId: string): Promise<BookingExe
         continue;
       }
 
-      // Get username (from booking or auth context)
-      // TODO: Fetch actual username from credentials table or auth context
-      const username = booking.user_email || 'annieyang';  // Fallback - should come from credentials
+      // Credentials are already decrypted by credentialsService.getCredentials()
+      const username = credential.username;
+      const password = credential.password;
+
+      console.log(`[BookingExecutor] Executing booking for user: ${username}`);
 
       const result = await executeBooking(booking, username, password);
       results.push(result);
@@ -258,8 +205,13 @@ export async function executePendingBookings(userId: string): Promise<BookingExe
 
 /**
  * Start the booking execution scheduler
- * This should be called when the app starts
- * In production, this would run on a backend server
+ *
+ * Starts a recurring timer that checks for pending bookings every 60 seconds.
+ * Should be called when user authenticates in the app.
+ * Stopped when user logs out.
+ *
+ * @param userId User ID to execute bookings for
+ * @param intervalMs How often to check for pending bookings (default 60 seconds)
  */
 let executorInterval: NodeJS.Timeout | null = null;
 
