@@ -117,7 +117,12 @@ async function executeBooking(params) {
     // ===================================================================
     console.log('[PlaywrightBooking] Phase 3: Loading Booking Form');
 
-    const bookingFormUrl = `https://jct.gametime.net/scheduling/index/book/sport/1/court/${court}/date/${date}/time/${time}`;
+    // Format date without leading zeros (e.g., 2025-11-07 -> 2025-11-7)
+    // GameTime.net requires dates without leading zeros in the URL
+    const dateParts = date.split('-');
+    const formattedDate = `${dateParts[0]}-${parseInt(dateParts[1])}-${parseInt(dateParts[2])}`;
+
+    const bookingFormUrl = `https://jct.gametime.net/scheduling/index/book/sport/1/court/${court}/date/${formattedDate}/time/${time}`;
 
     console.log(`[PlaywrightBooking] Navigating to booking form: ${bookingFormUrl}`);
     await page.goto(bookingFormUrl, { waitUntil: 'networkidle', timeout: 30000 });
