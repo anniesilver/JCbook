@@ -131,7 +131,7 @@ async function executeBooking(params) {
     console.log('[PlaywrightBooking] Schedule page loaded');
     await new Promise(r => setTimeout(r, 2000));
 
-    // Extract court ID mapping
+    // Extract court ID mapping - EXACT logic from find-court-id.js
     const courtMappings = await page.evaluate(() => {
       const courts = [];
 
@@ -150,39 +150,72 @@ async function executeBooking(params) {
       const links = document.querySelectorAll('a[href*="/court/"]');
       links.forEach(link => {
         const href = link.href;
+        // Match /court/XX/ or /court/XX# or /court/XX at end of URL
         const match = href.match(/\/court\/(\d+)(?:\/|#|$)/);
         if (match) {
           const courtId = match[1];
+          // Use the link's text directly, not the parent's text
           const courtName = link.textContent.trim() || link.innerText.trim();
+
           courts.push({
             courtId: courtId,
-            courtName: courtName
+            courtName: courtName,
+            href: href
           });
         }
+      });
+
+      // Also check any dropdown or select elements
+      const selects = document.querySelectorAll('select[name*="court"], select#courtSel');
+      selects.forEach(select => {
+        const options = select.querySelectorAll('option');
+        options.forEach(option => {
+          if (option.value && option.value !== '') {
+            courts.push({
+              courtId: option.value,
+              courtName: option.textContent.trim()
+            });
+          }
+        });
       });
 
       return courts;
     });
 
-    console.log(`[PlaywrightBooking] Found ${courtMappings.length} court mappings`);
+    console.log('[PlaywrightBooking] Found court mappings:');
+    console.log('[PlaywrightBooking] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    // Find the correct court ID for the requested court number
-    const courtName = `Court ${court}`;
-    const matchingCourt = courtMappings.find(c =>
-      c.courtName.toLowerCase().includes(courtName.toLowerCase()) ||
-      c.courtName.toLowerCase() === courtName.toLowerCase()
+    // Deduplicate and organize - EXACT logic from find-court-id.js
+    const uniqueCourts = {};
+    courtMappings.forEach(court => {
+      if (!uniqueCourts[court.courtId]) {
+        uniqueCourts[court.courtId] = court;
+      }
+    });
+
+    Object.values(uniqueCourts).forEach(court => {
+      console.log(`[PlaywrightBooking] Court ID: ${court.courtId.padEnd(4)} → ${court.courtName}`);
+    });
+
+    console.log('[PlaywrightBooking] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    // Find the specific court we're looking for - EXACT logic from find-court-id.js
+    const courtDisplayName = `Court ${court}`;
+    const matchingCourt = Object.values(uniqueCourts).find(court =>
+      court.courtName.toLowerCase().includes(courtDisplayName.toLowerCase())
     );
 
     if (!matchingCourt) {
-      console.error(`[PlaywrightBooking] Available courts:`);
-      courtMappings.forEach(c => {
-        console.error(`  - ${c.courtName} (ID: ${c.courtId})`);
+      console.log(`[PlaywrightBooking] ❌ Could not find court: "${courtDisplayName}"`);
+      console.log('[PlaywrightBooking] Available courts:');
+      Object.values(uniqueCourts).forEach(court => {
+        console.log(`[PlaywrightBooking]   - ${court.courtName}`);
       });
-      throw new Error(`Court "${courtName}" not found in GameTime system`);
+      throw new Error(`Court "${courtDisplayName}" not found in GameTime system`);
     }
 
     const gameTimeCourtId = matchingCourt.courtId;
-    console.log(`[PlaywrightBooking] Mapped "${courtName}" → Court ID: ${gameTimeCourtId}`);
+    console.log(`[PlaywrightBooking] ✅ Found: "${courtDisplayName}" → Court ID: ${gameTimeCourtId}`);
 
     // ===================================================================
     // PHASE 3: LOAD BOOKING FORM
