@@ -57,10 +57,14 @@ async function executeBooking(params) {
     console.log('[PlaywrightBooking] Loading login page...');
     await page.goto('https://jct.gametime.net/auth', { waitUntil: 'networkidle', timeout: 30000 });
 
+    console.log('[PlaywrightBooking] Login page loaded');
+    await new Promise(r => setTimeout(r, randomDelay(1000, 2000)));
+
     console.log('[PlaywrightBooking] Waiting for login form...');
     await page.waitForSelector('input[type="text"]', { timeout: 10000 });
     await page.waitForSelector('input[type="password"]', { timeout: 10000 });
 
+    console.log('[PlaywrightBooking] Login form ready');
     await new Promise(r => setTimeout(r, 500));
 
     console.log('[PlaywrightBooking] Entering username...');
@@ -113,6 +117,74 @@ async function executeBooking(params) {
     console.log(`[PlaywrightBooking] Captured ${cookies.length} cookies`);
 
     // ===================================================================
+    // PHASE 2.5: GET CORRECT COURT ID
+    // ===================================================================
+    console.log('[PlaywrightBooking] Phase 2.5: Getting Correct Court ID');
+    console.log(`[PlaywrightBooking] Requested court number: ${court}`);
+
+    // Navigate to tennis scheduling page to extract court mappings
+    await page.goto('https://jct.gametime.net/scheduling/index/index/sport/1', {
+      waitUntil: 'networkidle',
+      timeout: 30000
+    });
+
+    console.log('[PlaywrightBooking] Schedule page loaded');
+    await new Promise(r => setTimeout(r, 2000));
+
+    // Extract court ID mapping
+    const courtMappings = await page.evaluate(() => {
+      const courts = [];
+
+      // Check JavaScript variables
+      if (window.b && window.b.sportCourtData) {
+        const courtData = window.b.sportCourtData;
+        for (const courtId in courtData) {
+          courts.push({
+            courtId: courtId,
+            courtName: courtData[courtId].name || 'Unknown'
+          });
+        }
+      }
+
+      // Also try to find from DOM elements (links with court IDs)
+      const links = document.querySelectorAll('a[href*="/court/"]');
+      links.forEach(link => {
+        const href = link.href;
+        const match = href.match(/\/court\/(\d+)(?:\/|#|$)/);
+        if (match) {
+          const courtId = match[1];
+          const courtName = link.textContent.trim() || link.innerText.trim();
+          courts.push({
+            courtId: courtId,
+            courtName: courtName
+          });
+        }
+      });
+
+      return courts;
+    });
+
+    console.log(`[PlaywrightBooking] Found ${courtMappings.length} court mappings`);
+
+    // Find the correct court ID for the requested court number
+    const courtName = `Court ${court}`;
+    const matchingCourt = courtMappings.find(c =>
+      c.courtName.toLowerCase().includes(courtName.toLowerCase()) ||
+      c.courtName.toLowerCase() === courtName.toLowerCase()
+    );
+
+    if (!matchingCourt) {
+      console.error(`[PlaywrightBooking] Available courts:`);
+      courtMappings.forEach(c => {
+        console.error(`  - ${c.courtName} (ID: ${c.courtId})`);
+      });
+      throw new Error(`Court "${courtName}" not found in GameTime system`);
+    }
+
+    const gameTimeCourtId = matchingCourt.courtId;
+    console.log(`[PlaywrightBooking] Mapped "${courtName}" → Court ID: ${gameTimeCourtId}`);
+
+    // ===================================================================
     // PHASE 3: LOAD BOOKING FORM
     // ===================================================================
     console.log('[PlaywrightBooking] Phase 3: Loading Booking Form');
@@ -122,7 +194,7 @@ async function executeBooking(params) {
     const dateParts = date.split('-');
     const formattedDate = `${dateParts[0]}-${parseInt(dateParts[1])}-${parseInt(dateParts[2])}`;
 
-    const bookingFormUrl = `https://jct.gametime.net/scheduling/index/book/sport/1/court/${court}/date/${formattedDate}/time/${time}`;
+    const bookingFormUrl = `https://jct.gametime.net/scheduling/index/book/sport/1/court/${gameTimeCourtId}/date/${formattedDate}/time/${time}`;
 
     console.log(`[PlaywrightBooking] Navigating to booking form: ${bookingFormUrl}`);
     await page.goto(bookingFormUrl, { waitUntil: 'networkidle', timeout: 30000 });
@@ -214,7 +286,7 @@ async function executeBooking(params) {
     formData.append('upd', 'true');
     formData.append('duration', '30');              // First duration
     formData.append('g-recaptcha-response', freshToken);  // FRESH TOKEN!
-    formData.append('court', court);
+    formData.append('court', gameTimeCourtId);
     formData.append('date', date);
     formData.append('time', time);
     formData.append('sportSel', '1');
@@ -295,6 +367,7 @@ async function executeBooking(params) {
       return {
         success: true,
         bookingId: bookingId,
+        actualCourtId: gameTimeCourtId,
         confirmationUrl: finalUrl,
         timeGap: timeGap
       };
