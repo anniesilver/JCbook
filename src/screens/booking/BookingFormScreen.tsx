@@ -274,7 +274,6 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
 
   const [validationError, setValidationError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [agreedToKeepOpen, setAgreedToKeepOpen] = useState(false);
 
   // Date picker state
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -539,84 +538,16 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
           </View>
         </View>
 
-        {/* Summary Section */}
-        <View style={styles.summarySection}>
-          <ThemedText style={styles.summaryTitle}>Booking Summary</ThemedText>
-          <View style={styles.summaryItem}>
-            <ThemedText style={styles.summaryLabel}>Court:</ThemedText>
-            <ThemedText style={styles.summaryValue}>
-              {formData.preferred_court > 0 ? `Court ${formData.preferred_court}` : 'Not selected'}
-            </ThemedText>
-          </View>
-          <View style={styles.summaryItem}>
-            <ThemedText style={styles.summaryLabel}>Accept Any Court:</ThemedText>
-            <ThemedText style={styles.summaryValue}>
-              {formData.accept_any_court ? 'Yes' : 'No'}
-            </ThemedText>
-          </View>
-          <View style={styles.summaryItem}>
-            <ThemedText style={styles.summaryLabel}>Date:</ThemedText>
-            <ThemedText style={styles.summaryValue}>{formData.booking_date}</ThemedText>
-          </View>
-          <View style={styles.summaryItem}>
-            <ThemedText style={styles.summaryLabel}>Time:</ThemedText>
-            <ThemedText style={styles.summaryValue}>{formData.booking_time}</ThemedText>
-          </View>
-          <View style={styles.summaryItem}>
-            <ThemedText style={styles.summaryLabel}>Type:</ThemedText>
-            <ThemedText style={styles.summaryValue}>
-              {formData.booking_type.charAt(0).toUpperCase() + formData.booking_type.slice(1)}
-            </ThemedText>
-          </View>
-          <View style={styles.summaryItem}>
-            <ThemedText style={styles.summaryLabel}>Duration:</ThemedText>
-            <ThemedText style={styles.summaryValue}>{formData.duration_hours} hour(s)</ThemedText>
-          </View>
-          <View style={styles.summaryItem}>
-            <ThemedText style={styles.summaryLabel}>Recurrence:</ThemedText>
-            <ThemedText style={styles.summaryValue}>
-              {typeof formData.recurrence === 'string'
-                ? formData.recurrence
-                    .split('-')
-                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                    .join('-')
-                : 'Once'
-              }
-            </ThemedText>
-          </View>
-        </View>
-
-        {/* Keep-Awake Disclaimer */}
-        <View style={styles.disclaimerContainer}>
-          <View style={styles.checkboxRow}>
-            <Checkbox
-              value={agreedToKeepOpen}
-              onValueChange={setAgreedToKeepOpen}
-              style={styles.checkbox}
-            />
-            <View style={styles.disclaimerTextContainer}>
-              <ThemedText style={styles.disclaimerText}>
-                I understand I must keep this app open until the booking executes at the scheduled time
-              </ThemedText>
-            </View>
-          </View>
-          <View style={styles.disclaimerInfo}>
-            <ThemedText style={styles.disclaimerInfoText}>
-              The app will automatically execute your booking at 8:00 AM on the scheduled date. Keep your device charged and connected to the internet.
-            </ThemedText>
-          </View>
-        </View>
-
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={[
               styles.button,
               styles.submitButton,
-              (isLoading || !agreedToKeepOpen) && styles.buttonDisabled
+              isLoading && styles.buttonDisabled
             ]}
             onPress={handleSubmit}
-            disabled={isLoading || !agreedToKeepOpen}
+            disabled={isLoading}
           >
             {isLoading ? (
               <ActivityIndicator size="small" color="#fff" />
