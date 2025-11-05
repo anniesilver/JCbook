@@ -4,21 +4,9 @@
  * All credentials are encrypted before storage and decrypted on retrieval
  */
 
-import { createClient } from "@supabase/supabase-js";
 import { Credential, CredentialInput, APIError } from "../types/index";
 import * as encryptionService from "./encryptionService";
-
-// Initialize Supabase client
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    "Missing Supabase configuration. Please set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in your environment variables."
-  );
-}
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { supabase } from "./authService";
 
 /**
  * Save new credentials to Supabase
