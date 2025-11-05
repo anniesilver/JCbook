@@ -33,46 +33,54 @@ export const BookingCard: React.FC<BookingCardProps> = ({
   const handleCancel = async () => {
     if (!onCancel) return;
 
-    const confirmed = typeof window !== 'undefined' && window.confirm(
-      `Cancel booking for Court ${booking.preferred_court} on ${booking.booking_date}?`
+    Alert.alert(
+      'Cancel Booking',
+      `Cancel booking for Court ${booking.preferred_court} on ${booking.booking_date}?`,
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes',
+          style: 'destructive',
+          onPress: async () => {
+            setIsLoading(true);
+            try {
+              await onCancel(booking.id);
+              Alert.alert('Success', 'Booking cancelled');
+            } catch (error) {
+              Alert.alert('Error', error instanceof Error ? error.message : 'Failed to cancel booking');
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
+      ]
     );
-
-    if (!confirmed) return;
-
-    setIsLoading(true);
-    try {
-      await onCancel(booking.id);
-      if (typeof window !== 'undefined') {
-        window.alert('Booking cancelled');
-      }
-    } catch (error) {
-      if (typeof window !== 'undefined') {
-        window.alert(error instanceof Error ? error.message : 'Failed to cancel booking');
-      }
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const handleDelete = async () => {
     if (!onDelete) return;
 
-    const confirmed = typeof window !== 'undefined' && window.confirm(
-      `Delete booking for Court ${booking.preferred_court} on ${booking.booking_date}?`
+    Alert.alert(
+      'Delete Booking',
+      `Delete booking for Court ${booking.preferred_court} on ${booking.booking_date}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setIsLoading(true);
+            try {
+              await onDelete(booking.id);
+            } catch (error) {
+              Alert.alert('Error', error instanceof Error ? error.message : 'Failed to delete booking');
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
+      ]
     );
-
-    if (!confirmed) return;
-
-    setIsLoading(true);
-    try {
-      await onDelete(booking.id);
-    } catch (error) {
-      if (typeof window !== 'undefined') {
-        window.alert(error instanceof Error ? error.message : 'Failed to delete booking');
-      }
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const statusMap: Record<string, 'pending' | 'in_progress' | 'success' | 'failed'> = {
