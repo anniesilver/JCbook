@@ -58,12 +58,12 @@ export async function saveCredentials(
 
     // Save to Supabase
     const { data, error } = await supabase
-      .from("credentials")
+      .from("user_credentials")
       .insert([
         {
           user_id: userId,
-          username: credentials.username,
-          password: encryptedPassword,
+          gametime_username: credentials.username,
+          gametime_password: encryptedPassword,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -83,13 +83,17 @@ export async function saveCredentials(
 
     // Decrypt password for response
     const decryptedPassword = await encryptionService.decryptCredential(
-      data.password,
+      data.gametime_password,
       userId
     );
 
     const credential: Credential = {
-      ...data,
+      id: data.id,
+      user_id: data.user_id,
+      username: data.gametime_username,
       password: decryptedPassword,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
     };
 
     return {
@@ -118,7 +122,7 @@ export async function getCredentials(userId: string): Promise<{
 }> {
   try {
     const { data, error } = await supabase
-      .from("credentials")
+      .from("user_credentials")
       .select("*")
       .eq("user_id", userId)
       .single();
@@ -148,11 +152,15 @@ export async function getCredentials(userId: string): Promise<{
     }
 
     // Decrypt password
-    const decryptedPassword = await encryptionService.decryptCredential(data.password, userId);
+    const decryptedPassword = await encryptionService.decryptCredential(data.gametime_password, userId);
 
     const credential: Credential = {
-      ...data,
+      id: data.id,
+      user_id: data.user_id,
+      username: data.gametime_username,
       password: decryptedPassword,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
     };
 
     return {
@@ -222,10 +230,10 @@ export async function updateCredentials(
 
     // Update in Supabase
     const { data, error } = await supabase
-      .from("credentials")
+      .from("user_credentials")
       .update({
-        username: newCredentials.username,
-        password: encryptedPassword,
+        gametime_username: newCredentials.username,
+        gametime_password: encryptedPassword,
         updated_at: new Date().toISOString(),
       })
       .eq("id", credentialId)
@@ -245,13 +253,17 @@ export async function updateCredentials(
 
     // Decrypt password for response
     const decryptedPassword = await encryptionService.decryptCredential(
-      data.password,
+      data.gametime_password,
       userId
     );
 
     const credential: Credential = {
-      ...data,
+      id: data.id,
+      user_id: data.user_id,
+      username: data.gametime_username,
       password: decryptedPassword,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
     };
 
     return {
@@ -302,7 +314,7 @@ export async function deleteCredentials(
 ): Promise<APIError | null> {
   try {
     const { error } = await supabase
-      .from("credentials")
+      .from("user_credentials")
       .delete()
       .eq("id", credentialId)
       .eq("user_id", userId);
