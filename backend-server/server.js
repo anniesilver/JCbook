@@ -96,7 +96,7 @@ async function checkAndExecuteBookings() {
         .from('user_credentials')
         .select('id, gametime_username, gametime_password, user_id')
         .eq('user_id', booking.user_id)
-        .single();
+        .maybeSingle();
 
       if (credError || !credentials) {
         console.error(`[Server] Failed to fetch credentials for user ${booking.user_id}:`, credError?.message);
