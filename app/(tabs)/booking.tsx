@@ -5,7 +5,8 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import BookingFormScreen from '../../src/screens/booking/BookingFormScreen';
 import { BookingHistoryScreen } from '../../src/screens/booking/BookingHistoryScreen';
 import { useBookingStore } from '../../src/store/bookingStore';

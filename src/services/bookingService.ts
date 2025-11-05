@@ -9,17 +9,8 @@
  * - Querying bookings by status for scheduler
  */
 
-import { createClient } from "@supabase/supabase-js";
 import { Booking, BookingInput, APIError } from "../types/index";
-
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Supabase credentials not configured");
-}
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { supabase } from "./authService";
 
 /**
  * Create a new booking request

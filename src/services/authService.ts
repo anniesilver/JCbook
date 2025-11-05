@@ -30,6 +30,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
+ * Export Supabase client for use in other services
+ * This ensures all services share the same authenticated session
+ */
+export { supabase };
+
+/**
  * Parse user data from Supabase auth response
  */
 function parseUser(authUser: any): User {
