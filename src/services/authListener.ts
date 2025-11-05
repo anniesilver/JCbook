@@ -28,6 +28,13 @@ export function initializeAuthListener() {
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       console.log("Auth state changed:", event, "Session:", !!session);
 
+      // Ignore INITIAL_SESSION event - it fires on listener setup and can have stale data
+      // We handle initial auth state in initializeAuth() instead
+      if (event === 'INITIAL_SESSION') {
+        console.log('[AuthListener] Ignoring INITIAL_SESSION event');
+        return;
+      }
+
       if (session && session.user) {
         // User is logged in
         useAuthStore.setState({
@@ -41,8 +48,8 @@ export function initializeAuthListener() {
           isLoading: false,
           error: null,
         });
-      } else {
-        // User is logged out
+      } else if (event === 'SIGNED_OUT') {
+        // Only clear user on explicit sign out
         useAuthStore.setState({
           user: null,
           session: null,
