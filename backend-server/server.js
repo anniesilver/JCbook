@@ -165,7 +165,7 @@ async function checkAndExecuteBookings() {
               status: 'confirmed',
               auto_book_status: 'success',
               gametime_confirmation_id: result.bookingId,
-              actual_court: booking.preferred_court,
+              actual_court: result.actualCourtId,
               updated_at: new Date().toISOString()
             })
             .eq('id', booking.id);
@@ -173,6 +173,7 @@ async function checkAndExecuteBookings() {
           console.log('');
           console.log(`[Server] ✅ Booking ${booking.id} CONFIRMED`);
           console.log(`[Server] Confirmation ID: ${result.bookingId}`);
+          console.log(`[Server] Actual Court ID: ${result.actualCourtId}`);
           console.log(`[Server] Token submission time: ${result.timeGap}ms`);
           console.log('');
         } else {
