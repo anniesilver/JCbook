@@ -14,7 +14,7 @@ import {
   TextInput,
   Platform,
 } from 'react-native';
-import CheckBox from '@react-native-community/checkbox';
+import Checkbox from 'expo-checkbox';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { ThemedText } from '../../components/themed-text';
 import { ThemedView } from '../../components/themed-view';
@@ -427,7 +427,7 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
             />
           </View>
           <View style={styles.checkboxRow}>
-            <CheckBox
+            <Checkbox
               value={formData.accept_any_court}
               onValueChange={(value) => setFormData({ ...formData, accept_any_court: value })}
               style={styles.checkbox}
@@ -589,7 +589,7 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
         {/* Keep-Awake Disclaimer */}
         <View style={styles.disclaimerContainer}>
           <View style={styles.checkboxRow}>
-            <CheckBox
+            <Checkbox
               value={agreedToKeepOpen}
               onValueChange={setAgreedToKeepOpen}
               style={styles.checkbox}
