@@ -12,9 +12,9 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
-  CheckBox,
   Platform,
 } from 'react-native';
+import CheckBox from '@react-native-community/checkbox';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { ThemedText } from '../../components/themed-text';
 import { ThemedView } from '../../components/themed-view';
@@ -849,9 +849,9 @@ const styles = StyleSheet.create({
   },
   checkboxRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginTop: 12,
-    gap: 8,
+    gap: 12,
   },
   checkbox: {
     width: 20,
@@ -888,11 +888,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: '#FFA500',
     marginBottom: 16,
-    gap: 12,
-  },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
     gap: 12,
   },
   disclaimerTextContainer: {
