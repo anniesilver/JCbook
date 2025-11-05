@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
 import BookingFormScreen from '../../src/screens/booking/BookingFormScreen';
 import { BookingHistoryScreen } from '../../src/screens/booking/BookingHistoryScreen';
 import { useBookingStore } from '../../src/store/bookingStore';
@@ -31,13 +31,12 @@ export default function BookingTabScreen() {
     : '';
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Warning Banner for Pending Bookings */}
       {hasPendingBookings && (
         <View style={styles.warningBanner}>
-          <Text style={styles.warningTitle}>⚠️ IMPORTANT: Keep app open for automatic booking</Text>
-          <Text style={styles.warningText}>📱 Do not close app until {nextExecutionTime}</Text>
-          <Text style={styles.warningText}>🔋 Keep device charged and connected to internet</Text>
+          <Text style={styles.warningTitle}>PC Server will execute bookings automatically</Text>
+          <Text style={styles.warningText}>Next: {nextExecutionTime}</Text>
         </View>
       )}
 
@@ -48,7 +47,10 @@ export default function BookingTabScreen() {
             styles.tabButton,
             viewMode === 'form' && styles.tabButtonActive,
           ]}
-          onPress={() => setViewMode('form')}
+          onPress={() => {
+            console.log('Switching to form view');
+            setViewMode('form');
+          }}
         >
           <Text
             style={[
@@ -64,7 +66,10 @@ export default function BookingTabScreen() {
             styles.tabButton,
             viewMode === 'history' && styles.tabButtonActive,
           ]}
-          onPress={() => setViewMode('history')}
+          onPress={() => {
+            console.log('Switching to history view');
+            setViewMode('history');
+          }}
         >
           <Text
             style={[
@@ -78,20 +83,19 @@ export default function BookingTabScreen() {
       </View>
 
       {/* View Container */}
-      <View style={styles.viewContainer}>
-        {viewMode === 'form' && (
+      <View style={styles.viewContainer} key={viewMode}>
+        {viewMode === 'form' ? (
           <BookingFormScreen
             onBookingSuccess={() => setViewMode('history')}
           />
-        )}
-        {viewMode === 'history' && (
+        ) : (
           <BookingHistoryScreen
             showCloseButton={false}
             onClose={() => setViewMode('form')}
           />
         )}
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
