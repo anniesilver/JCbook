@@ -57,8 +57,21 @@ async function getAvailableCourts(page, date, time) {
     });
 
     // Extract availability data using page.evaluate
-    const availableCourts = await page.evaluate((targetTime) => {
+    const availableCourts = await page.evaluate((targetTimeMinutes) => {
       const results = [];
+
+      // Convert minutes to 12-hour format (e.g., 1320 -> "10:00 pm")
+      function minutesToTimeString(minutes) {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        const period = hours >= 12 ? 'pm' : 'am';
+        const displayHours = hours > 12 ? hours - 12 : (hours === 0 ? 12 : hours);
+        const displayMins = mins.toString().padStart(2, '0');
+        return `${displayHours}:${displayMins} ${period}`;
+      }
+
+      const targetTimeString = minutesToTimeString(targetTimeMinutes);
+      console.log(`Target time: ${targetTimeMinutes} minutes = "${targetTimeString}"`);
 
       // Find the table
       const table = document.querySelector('table.courtViewer');
@@ -67,114 +80,82 @@ async function getAvailableCourts(page, date, time) {
         return [];
       }
 
-      // Find all table rows
       const rows = table.querySelectorAll('tr');
-      console.log(`Total rows found: ${rows.length}`);
-
-      // First, extract court IDs from header row
-      // The header has cells with text like "Court 1", "Court 2", etc.
-      const headerRow = rows[0];
-      if (!headerRow) {
-        console.log('No header row found');
+      if (rows.length < 2) {
+        console.log('Not enough rows in table');
         return [];
       }
 
-      const courtHeaders = Array.from(headerRow.querySelectorAll('th, td')).slice(1); // Skip first column (time)
+      // Extract court numbers from header row
+      const headerRow = rows[0];
+      const courtHeaders = Array.from(headerRow.querySelectorAll('th, td')).slice(1);
       const courtMapping = {};
 
       courtHeaders.forEach((header, index) => {
         const text = header.textContent.trim();
         const courtMatch = text.match(/Court (\d+)/);
         if (courtMatch) {
-          const courtNumber = courtMatch[1];
-          courtMapping[index] = courtNumber;
+          courtMapping[index] = courtMatch[1];
         }
       });
 
       console.log('Court mapping:', courtMapping);
 
-      // DEBUG: Log table structure
-      console.log('=== DEBUG: Table structure ===');
-      console.log(`Header row cells: ${headerRow.querySelectorAll('th, td').length}`);
+      // Get the data row (only one row with all courts)
+      const dataRow = rows[1];
+      const courtCells = Array.from(dataRow.querySelectorAll('td')).slice(1); // Skip first cell
 
-      if (rows.length > 1) {
-        const dataRow = rows[1];
-        const dataCells = dataRow.querySelectorAll('td');
-        console.log(`Data row has ${dataCells.length} cells`);
+      console.log(`Found ${courtCells.length} court cells`);
 
-        // Log structure of first court cell (should be index 1, after time column)
-        if (dataCells.length > 1) {
-          const firstCourtCell = dataCells[1];
-          console.log('=== First Court Cell Structure ===');
-          console.log(`innerHTML length: ${firstCourtCell.innerHTML.length}`);
-          console.log(`Child elements: ${firstCourtCell.children.length}`);
-          console.log(`First 500 chars of HTML: ${firstCourtCell.innerHTML.substring(0, 500)}`);
+      // Check each court cell for the target time slot
+      courtCells.forEach((cell, index) => {
+        const courtNumber = courtMapping[index];
+        if (!courtNumber) return;
 
-          // Look for time slot elements (might be divs, spans, or clickable elements)
-          const clickableElements = firstCourtCell.querySelectorAll('[onclick], [data-time], .timeslot, .time-slot');
-          console.log(`Clickable/time-slot elements found: ${clickableElements.length}`);
-        }
-      }
+        // Find all timeslot divs inside this court cell
+        const timeslots = cell.querySelectorAll('div.timeslot');
+        console.log(`Court ${courtNumber}: ${timeslots.length} timeslots found`);
 
-      console.log(`Target time to match: "${targetTime}"`);
+        // Look for the timeslot matching our target time
+        timeslots.forEach(slot => {
+          const timeSpan = slot.querySelector('.time-booked, .time');
+          if (!timeSpan) return;
 
-      // Now find the row that matches our target time
-      let foundMatch = false;
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        const cells = row.querySelectorAll('td');
+          const slotTimeText = timeSpan.textContent.trim();
 
-        if (cells.length === 0) continue;
+          // Check if this timeslot matches our target time
+          if (slotTimeText === targetTimeString) {
+            console.log(`Court ${courtNumber}: Found matching timeslot "${slotTimeText}"`);
 
-        // First cell contains the time
-        const timeCell = cells[0];
-        const dataTime = timeCell.getAttribute('data-time');
-        const textContent = timeCell.textContent.trim();
+            // Check if slot is available
+            const style = window.getComputedStyle(slot);
+            const bgColor = style.backgroundColor;
 
-        // Check if this row matches our target time (try multiple matching strategies)
-        const matchesDataTime = dataTime === targetTime;
-        const matchesText = textContent === targetTime;
-        const textIncludes = textContent.includes(targetTime);
-        const dataTimeIncludes = dataTime && dataTime.includes(targetTime);
+            // Check for player names (indicates booked)
+            const namesDiv = slot.querySelector('.names');
+            const hasNames = namesDiv && namesDiv.textContent.trim().length > 0;
 
-        if (matchesDataTime || matchesText || textIncludes || dataTimeIncludes) {
-          console.log(`✓ Found matching time row at index ${i}!`);
-          console.log(`  data-time="${dataTime}", text="${textContent}"`);
-          foundMatch = true;
+            // Check for "Instr:" text (indicates instructor booking)
+            const hasInstructor = slot.textContent.includes('Instr:');
 
-          // Check each court cell (skip first cell which is time)
-          for (let colIndex = 1; colIndex < cells.length; colIndex++) {
-            const cell = cells[colIndex];
-            const courtNumber = courtMapping[colIndex - 1];
+            // Check background color (yellowish = available, others = booked)
+            const isYellowish = bgColor.includes('173, 207, 83') || bgColor.includes('rgba(173, 207, 83');
 
-            if (!courtNumber) continue;
+            console.log(`  bgColor: ${bgColor}`);
+            console.log(`  hasNames: ${hasNames}`);
+            console.log(`  hasInstructor: ${hasInstructor}`);
+            console.log(`  isYellowish: ${isYellowish}`);
 
-            // Check if this slot is available
-            // Available slots have: cursor: pointer, no background-color, no player names
-            const style = window.getComputedStyle(cell);
-            const hasCursorPointer = style.cursor === 'pointer';
-            const hasBackgroundColor = style.backgroundColor && style.backgroundColor !== 'rgba(0, 0, 0, 0)' && style.backgroundColor !== 'transparent';
-            const cellText = cell.textContent.trim();
-            const hasPlayerNames = cellText.length > 0 && !cellText.includes('Available');
-
-            console.log(`Court ${courtNumber}: cursor="${style.cursor}", bgColor="${style.backgroundColor}", text="${cellText}", hasText=${hasPlayerNames}`);
-
-            // Slot is available if it has pointer cursor and no background color
-            if (hasCursorPointer && !hasBackgroundColor && !hasPlayerNames) {
+            // Available if: yellowish background AND no names AND no instructor
+            if (isYellowish && !hasNames && !hasInstructor) {
               results.push(courtNumber);
               console.log(`  ✓ Court ${courtNumber} is AVAILABLE`);
             } else {
-              console.log(`  ✗ Court ${courtNumber} is NOT available`);
+              console.log(`  ✗ Court ${courtNumber} is NOT available (booked)`);
             }
           }
-
-          break; // Found our time slot, no need to check other rows
-        }
-      }
-
-      if (!foundMatch) {
-        console.log(`❌ No row found matching time: ${targetTime}`);
-      }
+        });
+      });
 
       return results;
     }, time);
