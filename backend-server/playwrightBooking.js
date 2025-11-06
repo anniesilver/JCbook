@@ -1,18 +1,14 @@
 /**
- * Playwright Booking Module
+ * Playwright Booking Module - OPTIMIZED VERSION
  *
- * This module ports the EXACT working solution from test-G-auto-fresh-token.js
- * to execute court bookings using Playwright automation.
- *
- * Success Rate: 100% (verified with Test G - Booking ID: 278886)
- * Method: Fresh reCAPTCHA token + HTTP POST
+ * Key optimization: Keeps browser session open for all court attempts
+ * instead of logging in fresh for each court.
  */
 
 const { chromium } = require('playwright');
 
 /**
  * Static mapping of court display numbers to GameTime court IDs
- * Court Number (shown to users) → GameTime Court ID (used in URLs/forms)
  */
 const COURT_ID_MAPPING = {
   '1': '50',
@@ -20,7 +16,7 @@ const COURT_ID_MAPPING = {
   '3': '52',
   '4': '53',
   '5': '54',
-  '6': '55'  
+  '6': '55'
 };
 
 /**
@@ -31,23 +27,196 @@ function randomDelay(min, max) {
 }
 
 /**
+ * Try booking a single court with existing browser session
+ */
+async function tryBookCourt(page, context, court, date, time, guestName) {
+  try {
+    console.log(`[PlaywrightBooking] === Attempting Court ${court} ===`);
+
+    // Map court number to GameTime court ID
+    const gameTimeCourtId = COURT_ID_MAPPING[court];
+    if (!gameTimeCourtId) {
+      console.log(`[PlaywrightBooking] ❌ Court ${court} not found in mapping`);
+      return { success: false, error: `Court ${court} not configured` };
+    }
+
+    console.log(`[PlaywrightBooking] Court ${court} → GameTime Court ID: ${gameTimeCourtId}`);
+
+    // Format date without leading zeros
+    const dateParts = date.split('-');
+    const formattedDate = `${dateParts[0]}-${parseInt(dateParts[1])}-${parseInt(dateParts[2])}`;
+
+    const bookingFormUrl = `https://jct.gametime.net/scheduling/index/book/sport/1/court/${gameTimeCourtId}/date/${formattedDate}/time/${time}`;
+
+    console.log(`[PlaywrightBooking] Loading booking form: ${bookingFormUrl}`);
+    await page.goto(bookingFormUrl, { waitUntil: 'networkidle', timeout: 30000 });
+
+    // Wait for form fields
+    await page.waitForSelector('input[name="temp"]', { timeout: 10000, state: 'attached' });
+    await page.waitForSelector('input[name="players[1][user_id]"]', { timeout: 10000, state: 'attached' });
+
+    // Wait for reCAPTCHA
+    await page.waitForFunction(() => {
+      return typeof window.grecaptcha !== 'undefined';
+    }, { timeout: 10000 }).catch(() => {
+      console.log('[PlaywrightBooking] WARNING: grecaptcha not loaded');
+    });
+
+    await new Promise(r => setTimeout(r, 1000));
+
+    // Generate fresh reCAPTCHA token
+    console.log(`[PlaywrightBooking] Generating fresh reCAPTCHA token for Court ${court}...`);
+    const freshToken = await page.evaluate(async () => {
+      const siteKey = '6LeW9NsUAAAAAC9KRF2JvdLtGMSds7hrBdxuOnLH';
+      const token = await window.grecaptcha.execute(siteKey, {action: 'homepage'});
+      return token;
+    }).catch(err => {
+      console.error('[PlaywrightBooking] Failed to execute grecaptcha:', err.message);
+      return null;
+    });
+
+    if (!freshToken) {
+      return { success: false, error: 'Failed to generate reCAPTCHA token' };
+    }
+
+    console.log(`[PlaywrightBooking] Token generated: ${freshToken.substring(0, 50)}...`);
+
+    // Extract form fields
+    const temp = await page.$eval('input[name="temp"]', el => el.value).catch(() => '');
+    const userId = await page.$eval('input[name="players[1][user_id]"]', el => el.value).catch(() => '');
+    const userName = await page.$eval('input[name="players[1][name]"]', el => el.value).catch(() => '');
+
+    const tokenExtractedTime = Date.now();
+
+    // Get cookies for HTTP POST
+    const cookies = await context.cookies();
+    const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+
+    // Submit via HTTP POST
+    console.log(`[PlaywrightBooking] Submitting booking for Court ${court}...`);
+
+    if (!userId) {
+      return { success: false, error: 'Missing user_id from form extraction' };
+    }
+
+    // Build form data
+    const formData = new URLSearchParams();
+    formData.append('edit', '');
+    formData.append('is_register', '');
+    formData.append('rt_key', '');
+    formData.append('temp', temp);
+    formData.append('upd', 'true');
+    formData.append('duration', '30');
+    formData.append('g-recaptcha-response', freshToken);
+    formData.append('court', gameTimeCourtId);
+    formData.append('date', date);
+    formData.append('time', time);
+    formData.append('sportSel', '1');
+    formData.append('duration', '60');
+    formData.append('rtype', '13');
+    formData.append('invite_for', 'Singles');
+    formData.append('players[1][user_id]', userId);
+    formData.append('players[1][name]', userName);
+    formData.append('players[2][user_id]', '');
+    formData.append('players[2][name]', guestName);
+    formData.append('players[2][guest]', 'on');
+    formData.append('players[2][guestof]', '1');
+    formData.append('payee_hide', userId);
+    formData.append('bookingWaiverPolicy', 'true');
+
+    const submitResponse = await fetch('https://jct.gametime.net/scheduling/index/save?errs=', {
+      method: 'POST',
+      headers: {
+        'Cookie': cookieHeader,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Origin': 'https://jct.gametime.net',
+        'Referer': bookingFormUrl,
+        'Upgrade-Insecure-Requests': '1'
+      },
+      body: formData.toString(),
+      redirect: 'manual'
+    });
+
+    const submissionTime = Date.now();
+    const timeGap = submissionTime - tokenExtractedTime;
+
+    console.log(`[PlaywrightBooking] Response Status: ${submitResponse.status} ${submitResponse.statusText}`);
+    console.log(`[PlaywrightBooking] Time gap: ${timeGap}ms`);
+
+    // Check result
+    let finalUrl = submitResponse.url;
+    let success = false;
+    let bookingId = null;
+
+    if (submitResponse.status === 302) {
+      const location = submitResponse.headers.get('location');
+      if (location) {
+        finalUrl = location.startsWith('http') ? location : 'https://jct.gametime.net' + location;
+
+        if (finalUrl.includes('/confirmation')) {
+          success = true;
+          const bookingIdMatch = finalUrl.match(/id\/(\d+)/);
+          bookingId = bookingIdMatch ? bookingIdMatch[1] : null;
+        }
+      }
+    }
+
+    if (success) {
+      console.log(`[PlaywrightBooking] ✅ Court ${court} booking SUCCESSFUL!`);
+      console.log(`[PlaywrightBooking] Booking ID: ${bookingId}`);
+      return {
+        success: true,
+        bookingId: bookingId,
+        courtBooked: court,
+        actualCourtId: gameTimeCourtId,
+        confirmationUrl: finalUrl,
+        timeGap: timeGap
+      };
+    } else {
+      console.log(`[PlaywrightBooking] ❌ Court ${court} booking failed (likely unavailable)`);
+      return {
+        success: false,
+        error: `Court ${court} is unavailable`,
+        courtTried: court
+      };
+    }
+
+  } catch (error) {
+    console.error(`[PlaywrightBooking] Error trying Court ${court}:`, error.message);
+    return {
+      success: false,
+      error: error.message,
+      courtTried: court
+    };
+  }
+}
+
+/**
  * Execute a court booking using Playwright automation
+ * OPTIMIZED: Keeps browser session open for all court attempts
  *
  * @param {Object} params - Booking parameters
  * @param {string} params.username - GameTime username
  * @param {string} params.password - GameTime password (decrypted)
- * @param {string} params.court - Court ID (e.g., "52")
+ * @param {Array<string>} params.courts - Array of court IDs to try in order (e.g., ["3", "1", "2"])
  * @param {string} params.date - Booking date in YYYY-MM-DD format
  * @param {string} params.time - Time in minutes from midnight (e.g., "540" = 9:00 AM)
  * @param {string} [params.guestName] - Guest player name (default: "Guest Player")
  *
- * @returns {Promise<Object>} Result object { success: boolean, bookingId?: string, error?: string }
+ * @returns {Promise<Object>} Result object
  */
 async function executeBooking(params) {
-  const { username, password, court, date, time, guestName = 'Guest Player' } = params;
+  const { username, password, courts, date, time, guestName = 'Guest Player' } = params;
 
-  console.log(`[PlaywrightBooking] Starting booking execution for court ${court} on ${date} at ${time}`);
-  console.log(`[PlaywrightBooking] Using credentials - Username: ${username}`);
+  console.log(`[PlaywrightBooking] ========================================`);
+  console.log(`[PlaywrightBooking] Starting booking execution`);
+  console.log(`[PlaywrightBooking] Courts to try: ${courts.join(', ')}`);
+  console.log(`[PlaywrightBooking] Date: ${date}, Time: ${time}`);
+  console.log(`[PlaywrightBooking] Username: ${username}`);
+  console.log(`[PlaywrightBooking] ========================================`);
 
   let browser = null;
   let context = null;
@@ -55,9 +224,9 @@ async function executeBooking(params) {
 
   try {
     // ===================================================================
-    // PHASE 1: AUTOMATED LOGIN
+    // PHASE 1: LOGIN ONCE
     // ===================================================================
-    console.log('[PlaywrightBooking] Phase 1: Automated Login');
+    console.log('[PlaywrightBooking] Phase 1: Logging in (ONE TIME)');
 
     browser = await chromium.launch({
       headless: false, // TEMPORARILY non-headless for debugging
@@ -71,17 +240,9 @@ async function executeBooking(params) {
     console.log('[PlaywrightBooking] Loading login page...');
     await page.goto('https://jct.gametime.net/auth', { waitUntil: 'networkidle', timeout: 30000 });
 
-    console.log('[PlaywrightBooking] Login page loaded');
     await new Promise(r => setTimeout(r, randomDelay(1000, 2000)));
 
-    console.log('[PlaywrightBooking] Waiting for login form...');
-    await page.waitForSelector('input[type="text"]', { timeout: 10000 });
-    await page.waitForSelector('input[type="password"]', { timeout: 10000 });
-
-    console.log('[PlaywrightBooking] Login form ready');
-    await new Promise(r => setTimeout(r, 500));
-
-    console.log('[PlaywrightBooking] Entering username...');
+    console.log('[PlaywrightBooking] Entering credentials...');
     const usernameField = await page.$('input[type="text"]');
     if (!usernameField) throw new Error('Username field not found');
 
@@ -91,7 +252,6 @@ async function executeBooking(params) {
 
     await new Promise(r => setTimeout(r, randomDelay(500, 800)));
 
-    console.log('[PlaywrightBooking] Entering password...');
     const passwordField = await page.$('input[type="password"]');
     if (!passwordField) throw new Error('Password field not found');
 
@@ -117,254 +277,65 @@ async function executeBooking(params) {
       // Navigation might complete without full networkidle
     }
 
-    // Verify login succeeded by checking the URL or page content
     await new Promise(r => setTimeout(r, 2000));
 
+    // Verify login succeeded
     const currentUrl = page.url();
     console.log(`[PlaywrightBooking] Current URL after login: ${currentUrl}`);
 
-    // Check if still on auth page (login failed)
     if (currentUrl.includes('/auth')) {
       throw new Error('Login failed - still on auth page. Please check credentials.');
     }
 
-    console.log('[PlaywrightBooking] Login completed');
+    console.log('[PlaywrightBooking] ✅ Login successful! Session established.');
+    console.log('');
 
     // ===================================================================
-    // PHASE 2: CAPTURE COOKIES
+    // PHASE 2: TRY EACH COURT WITH SAME SESSION
     // ===================================================================
-    console.log('[PlaywrightBooking] Phase 2: Capturing Session Cookies');
+    console.log('[PlaywrightBooking] Phase 2: Trying courts sequentially with same session');
+    console.log('');
 
-    const cookies = await context.cookies();
-    const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+    let finalResult = null;
 
-    console.log(`[PlaywrightBooking] Captured ${cookies.length} cookies`);
+    for (const court of courts) {
+      const result = await tryBookCourt(page, context, court, date, time, guestName);
 
-    // ===================================================================
-    // PHASE 2.5: MAP COURT NUMBER TO GAMETIME COURT ID
-    // ===================================================================
-    console.log('[PlaywrightBooking] Phase 2.5: Mapping Court Number to GameTime Court ID');
-    console.log(`[PlaywrightBooking] Requested court number: ${court}`);
-
-    // Simple static mapping lookup
-    const gameTimeCourtId = COURT_ID_MAPPING[court];
-
-    if (!gameTimeCourtId) {
-      console.log(`[PlaywrightBooking] ❌ Court ${court} not found in mapping`);
-      console.log('[PlaywrightBooking] Available courts:', Object.keys(COURT_ID_MAPPING).join(', '));
-      throw new Error(`Court number ${court} is not configured in COURT_ID_MAPPING`);
-    }
-
-    console.log(`[PlaywrightBooking] ✅ Court ${court} → GameTime Court ID: ${gameTimeCourtId}`);
-
-    // ===================================================================
-    // PHASE 3: LOAD BOOKING FORM
-    // ===================================================================
-    console.log('[PlaywrightBooking] Phase 3: Loading Booking Form');
-
-    // Format date without leading zeros (e.g., 2025-11-07 -> 2025-11-7)
-    // GameTime.net requires dates without leading zeros in the URL
-    const dateParts = date.split('-');
-    const formattedDate = `${dateParts[0]}-${parseInt(dateParts[1])}-${parseInt(dateParts[2])}`;
-
-    const bookingFormUrl = `https://jct.gametime.net/scheduling/index/book/sport/1/court/${gameTimeCourtId}/date/${formattedDate}/time/${time}`;
-
-    console.log(`[PlaywrightBooking] Navigating to booking form: ${bookingFormUrl}`);
-    await page.goto(bookingFormUrl, { waitUntil: 'networkidle', timeout: 30000 });
-
-    console.log('[PlaywrightBooking] Booking form page loaded');
-
-    // Take screenshot for debugging
-    await page.screenshot({ path: `booking-form-debug-${Date.now()}.png` }).catch(() => {});
-
-    console.log('[PlaywrightBooking] Waiting for form fields...');
-    // Hidden inputs need state: 'attached' instead of 'visible'
-    await page.waitForSelector('input[name="temp"]', { timeout: 10000, state: 'attached' });
-    await page.waitForSelector('input[name="players[1][user_id]"]', { timeout: 10000, state: 'attached' });
-
-    console.log('[PlaywrightBooking] Form fields ready');
-
-    console.log('[PlaywrightBooking] Waiting for reCAPTCHA to load...');
-
-    await page.waitForFunction(() => {
-      return typeof window.grecaptcha !== 'undefined';
-    }, { timeout: 10000 }).catch(() => {
-      console.log('[PlaywrightBooking] WARNING: grecaptcha not loaded');
-    });
-
-    console.log('[PlaywrightBooking] reCAPTCHA loaded');
-    await new Promise(r => setTimeout(r, 1000));
-
-    // ===================================================================
-    // PHASE 4: GENERATE FRESH TOKEN (CRITICAL!)
-    // ===================================================================
-    console.log('[PlaywrightBooking] Phase 4: Generating FRESH reCAPTCHA Token');
-    console.log('[PlaywrightBooking] Calling grecaptcha.execute({action: "homepage"})...');
-
-    const freshToken = await page.evaluate(async () => {
-      const siteKey = '6LeW9NsUAAAAAC9KRF2JvdLtGMSds7hrBdxuOnLH';
-
-      // Call grecaptcha.execute() and wait for the promise
-      const token = await window.grecaptcha.execute(siteKey, {action: 'homepage'});
-      return token;
-    }).catch(err => {
-      console.error('[PlaywrightBooking] Failed to execute grecaptcha:', err.message);
-      return null;
-    });
-
-    if (!freshToken) {
-      throw new Error('Failed to generate fresh reCAPTCHA token');
-    }
-
-    console.log(`[PlaywrightBooking] Fresh token generated: ${freshToken.substring(0, 50)}...`);
-
-    // ===================================================================
-    // PHASE 5: EXTRACT OTHER FORM FIELDS
-    // ===================================================================
-    console.log('[PlaywrightBooking] Phase 5: Extracting Form Fields');
-
-    const temp = await page.$eval('input[name="temp"]', el => el.value).catch(() => '');
-    console.log(`[PlaywrightBooking] temp: ${temp}`);
-
-    const userId = await page.$eval('input[name="players[1][user_id]"]', el => el.value).catch(() => '');
-    console.log(`[PlaywrightBooking] user_id: ${userId}`);
-
-    const userName = await page.$eval('input[name="players[1][name]"]', el => el.value).catch(() => '');
-    console.log(`[PlaywrightBooking] user_name: ${userName}`);
-
-    const tokenExtractedTime = Date.now();
-
-    // ===================================================================
-    // PHASE 6: CLOSE BROWSER
-    // ===================================================================
-    console.log('[PlaywrightBooking] Phase 6: Closing Browser');
-
-    await browser.close();
-    browser = null;
-
-    console.log('[PlaywrightBooking] Browser closed');
-    console.log('[PlaywrightBooking] From this point: PURE HTTP POST with FRESH token!');
-
-    await new Promise(r => setTimeout(r, 500));
-
-    // ===================================================================
-    // PHASE 7: SUBMIT VIA HTTP POST
-    // ===================================================================
-    console.log('[PlaywrightBooking] Phase 7: Submitting via HTTP POST');
-
-    if (!userId) {
-      throw new Error('Missing user_id from form extraction');
-    }
-
-    // Build form data with FRESH token
-    // CRITICAL: Use URLSearchParams.append() to preserve duplicate 'duration' fields
-    const formData = new URLSearchParams();
-    formData.append('edit', '');
-    formData.append('is_register', '');
-    formData.append('rt_key', '');
-    formData.append('temp', temp);
-    formData.append('upd', 'true');
-    formData.append('duration', '30');              // First duration
-    formData.append('g-recaptcha-response', freshToken);  // FRESH TOKEN!
-    formData.append('court', gameTimeCourtId);
-    formData.append('date', date);
-    formData.append('time', time);
-    formData.append('sportSel', '1');
-    formData.append('duration', '60');              // Second duration (duplicate key!)
-    formData.append('rtype', '13');
-    formData.append('invite_for', 'Singles');
-    formData.append('players[1][user_id]', userId);
-    formData.append('players[1][name]', userName);
-    formData.append('players[2][user_id]', '');
-    formData.append('players[2][name]', guestName);
-    formData.append('players[2][guest]', 'on');
-    formData.append('players[2][guestof]', '1');
-    formData.append('payee_hide', userId);
-    formData.append('bookingWaiverPolicy', 'true');
-
-    console.log('[PlaywrightBooking] Form data prepared with FRESH token');
-
-    console.log('[PlaywrightBooking] Submitting to: /scheduling/index/save?errs=');
-
-    const submitResponse = await fetch('https://jct.gametime.net/scheduling/index/save?errs=', {
-      method: 'POST',
-      headers: {
-        'Cookie': cookieHeader,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Origin': 'https://jct.gametime.net',
-        'Referer': bookingFormUrl,
-        'Upgrade-Insecure-Requests': '1'
-      },
-      body: formData.toString(),
-      redirect: 'manual'
-    });
-
-    const submissionTime = Date.now();
-    const timeGap = submissionTime - tokenExtractedTime;
-
-    console.log(`[PlaywrightBooking] Response Status: ${submitResponse.status} ${submitResponse.statusText}`);
-    console.log(`[PlaywrightBooking] Time gap (token generation → submission): ${timeGap}ms`);
-
-    // ===================================================================
-    // PHASE 8: CHECK RESULT
-    // ===================================================================
-    console.log('[PlaywrightBooking] Phase 8: Checking Result');
-
-    let finalUrl = submitResponse.url;
-    let success = false;
-    let bookingId = null;
-
-    if (submitResponse.status === 302) {
-      const location = submitResponse.headers.get('location');
-      console.log(`[PlaywrightBooking] Redirect detected: ${location}`);
-
-      if (location) {
-        finalUrl = location.startsWith('http') ? location : 'https://jct.gametime.net' + location;
-
-        if (finalUrl.includes('/confirmation')) {
-          success = true;
-          // Extract booking ID from URL
-          const bookingIdMatch = finalUrl.match(/id\/(\d+)/);
-          bookingId = bookingIdMatch ? bookingIdMatch[1] : null;
-        } else if (finalUrl.includes('/bookerror')) {
-          success = false;
-        }
+      if (result.success) {
+        console.log('');
+        console.log(`[PlaywrightBooking] 🎉 SUCCESS! Booked Court ${court}`);
+        console.log('');
+        finalResult = result;
+        break; // Stop trying once we succeed
+      } else {
+        console.log('');
+        console.log(`[PlaywrightBooking] Court ${court} failed, trying next...`);
+        console.log('');
+        // Small delay before trying next court
+        await new Promise(r => setTimeout(r, 1000));
       }
     }
 
     // ===================================================================
-    // FINAL RESULT
+    // PHASE 3: CLOSE BROWSER (FINALLY!)
     // ===================================================================
-    if (success) {
-      console.log(`[PlaywrightBooking] ✅ SUCCESS - Booking confirmed with FRESH token!`);
-      console.log(`[PlaywrightBooking] Booking ID: ${bookingId}`);
-      console.log(`[PlaywrightBooking] Confirmation URL: ${finalUrl}`);
-      console.log(`[PlaywrightBooking] Token submitted within ${timeGap}ms (very fresh!)`);
+    console.log('[PlaywrightBooking] Phase 3: Closing browser session');
+    await browser.close();
+    browser = null;
+    console.log('[PlaywrightBooking] ✅ Browser closed');
+    console.log('');
 
-      return {
-        success: true,
-        bookingId: bookingId,
-        actualCourtId: gameTimeCourtId,
-        confirmationUrl: finalUrl,
-        timeGap: timeGap
-      };
+    if (finalResult && finalResult.success) {
+      return finalResult;
     } else {
-      console.log(`[PlaywrightBooking] ❌ FAILED - Booking rejected`);
-      console.log(`[PlaywrightBooking] Redirect URL: ${finalUrl}`);
-
       return {
         success: false,
-        error: 'Booking rejected by GameTime server',
-        redirectUrl: finalUrl,
-        timeGap: timeGap
+        error: `All courts unavailable. Tried: ${courts.join(', ')}`
       };
     }
 
   } catch (error) {
-    console.error(`[PlaywrightBooking] ERROR: ${error.message}`);
+    console.error(`[PlaywrightBooking] FATAL ERROR: ${error.message}`);
     console.error(error.stack);
 
     if (browser) {
