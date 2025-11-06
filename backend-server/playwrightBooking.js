@@ -40,19 +40,16 @@ async function getAvailableCourts(page, date, time) {
     console.log('[PlaywrightBooking] === Checking Court Availability ===');
     console.log(`[PlaywrightBooking] Date: ${date}, Time: ${time} minutes`);
 
-    // Format date without leading zeros for URL
-    const dateParts = date.split('-');
-    const formattedDate = `${dateParts[0]}-${parseInt(dateParts[1])}-${parseInt(dateParts[2])}`;
-
-    // Navigate to Tennis schedule page with specific date
-    const scheduleUrl = `https://jct.gametime.net/scheduling/index/index/sport/1/date/${formattedDate}`;
+    // Navigate to Tennis schedule page with specific date (using hash fragment)
+    const scheduleUrl = `https://jct.gametime.net/scheduling/index/index/sport/1#date=${date}&group=null`;
     console.log(`[PlaywrightBooking] Loading schedule: ${scheduleUrl}`);
 
     await page.goto(scheduleUrl, { waitUntil: 'networkidle', timeout: 30000 });
 
     // Wait for the schedule table to load
     await page.waitForSelector('table.courtViewer', { timeout: 10000 });
-    await new Promise(r => setTimeout(r, 1000)); // Extra wait for dynamic content
+    // Extra wait for dynamic content to update (hash navigation might trigger AJAX)
+    await new Promise(r => setTimeout(r, 2000));
 
     // Extract availability data using page.evaluate
     const availableCourts = await page.evaluate((targetTime) => {
@@ -67,11 +64,15 @@ async function getAvailableCourts(page, date, time) {
 
       // Find all table rows
       const rows = table.querySelectorAll('tr');
+      console.log(`Total rows found: ${rows.length}`);
 
       // First, extract court IDs from header row
       // The header has cells with text like "Court 1", "Court 2", etc.
       const headerRow = rows[0];
-      if (!headerRow) return [];
+      if (!headerRow) {
+        console.log('No header row found');
+        return [];
+      }
 
       const courtHeaders = Array.from(headerRow.querySelectorAll('th, td')).slice(1); // Skip first column (time)
       const courtMapping = {};
@@ -87,7 +88,22 @@ async function getAvailableCourts(page, date, time) {
 
       console.log('Court mapping:', courtMapping);
 
+      // DEBUG: Log first 10 rows to see time format
+      console.log('=== DEBUG: First 10 time rows ===');
+      for (let i = 1; i < Math.min(11, rows.length); i++) {
+        const cells = rows[i].querySelectorAll('td');
+        if (cells.length > 0) {
+          const timeCell = cells[0];
+          const dataTime = timeCell.getAttribute('data-time');
+          const textContent = timeCell.textContent.trim();
+          console.log(`Row ${i}: data-time="${dataTime}", text="${textContent}"`);
+        }
+      }
+
+      console.log(`Target time to match: "${targetTime}"`);
+
       // Now find the row that matches our target time
+      let foundMatch = false;
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         const cells = row.querySelectorAll('td');
@@ -96,12 +112,19 @@ async function getAvailableCourts(page, date, time) {
 
         // First cell contains the time
         const timeCell = cells[0];
-        const timeAttr = timeCell.getAttribute('data-time') || timeCell.textContent.trim();
+        const dataTime = timeCell.getAttribute('data-time');
+        const textContent = timeCell.textContent.trim();
 
-        // Check if this row matches our target time
-        // data-time attribute or text content should contain the time in minutes
-        if (timeAttr === targetTime || timeCell.textContent.includes(targetTime)) {
-          console.log(`Found matching time row: ${timeAttr}`);
+        // Check if this row matches our target time (try multiple matching strategies)
+        const matchesDataTime = dataTime === targetTime;
+        const matchesText = textContent === targetTime;
+        const textIncludes = textContent.includes(targetTime);
+        const dataTimeIncludes = dataTime && dataTime.includes(targetTime);
+
+        if (matchesDataTime || matchesText || textIncludes || dataTimeIncludes) {
+          console.log(`✓ Found matching time row at index ${i}!`);
+          console.log(`  data-time="${dataTime}", text="${textContent}"`);
+          foundMatch = true;
 
           // Check each court cell (skip first cell which is time)
           for (let colIndex = 1; colIndex < cells.length; colIndex++) {
@@ -115,21 +138,26 @@ async function getAvailableCourts(page, date, time) {
             const style = window.getComputedStyle(cell);
             const hasCursorPointer = style.cursor === 'pointer';
             const hasBackgroundColor = style.backgroundColor && style.backgroundColor !== 'rgba(0, 0, 0, 0)' && style.backgroundColor !== 'transparent';
-            const hasPlayerNames = cell.textContent.trim().length > 0 && !cell.textContent.includes('Available');
+            const cellText = cell.textContent.trim();
+            const hasPlayerNames = cellText.length > 0 && !cellText.includes('Available');
 
-            console.log(`Court ${courtNumber}: cursor=${style.cursor}, bgColor=${style.backgroundColor}, hasText=${hasPlayerNames}`);
+            console.log(`Court ${courtNumber}: cursor="${style.cursor}", bgColor="${style.backgroundColor}", text="${cellText}", hasText=${hasPlayerNames}`);
 
             // Slot is available if it has pointer cursor and no background color
             if (hasCursorPointer && !hasBackgroundColor && !hasPlayerNames) {
               results.push(courtNumber);
-              console.log(`✓ Court ${courtNumber} is AVAILABLE`);
+              console.log(`  ✓ Court ${courtNumber} is AVAILABLE`);
             } else {
-              console.log(`✗ Court ${courtNumber} is NOT available`);
+              console.log(`  ✗ Court ${courtNumber} is NOT available`);
             }
           }
 
           break; // Found our time slot, no need to check other rows
         }
+      }
+
+      if (!foundMatch) {
+        console.log(`❌ No row found matching time: ${targetTime}`);
       }
 
       return results;
