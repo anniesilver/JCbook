@@ -27,6 +27,129 @@ function randomDelay(min, max) {
 }
 
 /**
+ * Check which courts are available at the requested date/time
+ * Navigates to the Tennis schedule page and parses the availability table
+ *
+ * @param {Page} page - Playwright page object (already logged in)
+ * @param {string} date - Booking date in YYYY-MM-DD format
+ * @param {string} time - Time in minutes from midnight (e.g., "540" = 9:00 AM)
+ * @returns {Promise<string[]>} Array of available court numbers (e.g., ["1", "3", "5"])
+ */
+async function getAvailableCourts(page, date, time) {
+  try {
+    console.log('[PlaywrightBooking] === Checking Court Availability ===');
+    console.log(`[PlaywrightBooking] Date: ${date}, Time: ${time} minutes`);
+
+    // Format date without leading zeros for URL
+    const dateParts = date.split('-');
+    const formattedDate = `${dateParts[0]}-${parseInt(dateParts[1])}-${parseInt(dateParts[2])}`;
+
+    // Navigate to Tennis schedule page with specific date
+    const scheduleUrl = `https://jct.gametime.net/scheduling/index/index/sport/1/date/${formattedDate}`;
+    console.log(`[PlaywrightBooking] Loading schedule: ${scheduleUrl}`);
+
+    await page.goto(scheduleUrl, { waitUntil: 'networkidle', timeout: 30000 });
+
+    // Wait for the schedule table to load
+    await page.waitForSelector('table.courtViewer', { timeout: 10000 });
+    await new Promise(r => setTimeout(r, 1000)); // Extra wait for dynamic content
+
+    // Extract availability data using page.evaluate
+    const availableCourts = await page.evaluate((targetTime) => {
+      const results = [];
+
+      // Find the table
+      const table = document.querySelector('table.courtViewer');
+      if (!table) {
+        console.log('Schedule table not found');
+        return [];
+      }
+
+      // Find all table rows
+      const rows = table.querySelectorAll('tr');
+
+      // First, extract court IDs from header row
+      // The header has cells with text like "Court 1", "Court 2", etc.
+      const headerRow = rows[0];
+      if (!headerRow) return [];
+
+      const courtHeaders = Array.from(headerRow.querySelectorAll('th, td')).slice(1); // Skip first column (time)
+      const courtMapping = {};
+
+      courtHeaders.forEach((header, index) => {
+        const text = header.textContent.trim();
+        const courtMatch = text.match(/Court (\d+)/);
+        if (courtMatch) {
+          const courtNumber = courtMatch[1];
+          courtMapping[index] = courtNumber;
+        }
+      });
+
+      console.log('Court mapping:', courtMapping);
+
+      // Now find the row that matches our target time
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const cells = row.querySelectorAll('td');
+
+        if (cells.length === 0) continue;
+
+        // First cell contains the time
+        const timeCell = cells[0];
+        const timeAttr = timeCell.getAttribute('data-time') || timeCell.textContent.trim();
+
+        // Check if this row matches our target time
+        // data-time attribute or text content should contain the time in minutes
+        if (timeAttr === targetTime || timeCell.textContent.includes(targetTime)) {
+          console.log(`Found matching time row: ${timeAttr}`);
+
+          // Check each court cell (skip first cell which is time)
+          for (let colIndex = 1; colIndex < cells.length; colIndex++) {
+            const cell = cells[colIndex];
+            const courtNumber = courtMapping[colIndex - 1];
+
+            if (!courtNumber) continue;
+
+            // Check if this slot is available
+            // Available slots have: cursor: pointer, no background-color, no player names
+            const style = window.getComputedStyle(cell);
+            const hasCursorPointer = style.cursor === 'pointer';
+            const hasBackgroundColor = style.backgroundColor && style.backgroundColor !== 'rgba(0, 0, 0, 0)' && style.backgroundColor !== 'transparent';
+            const hasPlayerNames = cell.textContent.trim().length > 0 && !cell.textContent.includes('Available');
+
+            console.log(`Court ${courtNumber}: cursor=${style.cursor}, bgColor=${style.backgroundColor}, hasText=${hasPlayerNames}`);
+
+            // Slot is available if it has pointer cursor and no background color
+            if (hasCursorPointer && !hasBackgroundColor && !hasPlayerNames) {
+              results.push(courtNumber);
+              console.log(`✓ Court ${courtNumber} is AVAILABLE`);
+            } else {
+              console.log(`✗ Court ${courtNumber} is NOT available`);
+            }
+          }
+
+          break; // Found our time slot, no need to check other rows
+        }
+      }
+
+      return results;
+    }, time);
+
+    console.log(`[PlaywrightBooking] Available courts at ${time} minutes: ${availableCourts.length > 0 ? availableCourts.join(', ') : 'None'}`);
+    console.log('');
+
+    return availableCourts;
+
+  } catch (error) {
+    console.error(`[PlaywrightBooking] Error checking availability: ${error.message}`);
+    console.log('[PlaywrightBooking] Proceeding with all courts (availability check failed)');
+    console.log('');
+    // If availability check fails, return empty array (caller will use all courts)
+    return [];
+  }
+}
+
+/**
  * Try booking a single court with existing browser session
  */
 async function tryBookCourt(page, context, court, date, time, guestName) {
@@ -291,6 +414,41 @@ async function executeBooking(params) {
     console.log('');
 
     // ===================================================================
+    // PHASE 1.5: CHECK AVAILABILITY (FILTER UNAVAILABLE COURTS)
+    // ===================================================================
+    console.log('[PlaywrightBooking] Phase 1.5: Checking court availability');
+
+    const availableCourts = await getAvailableCourts(page, date, time);
+
+    // Filter courts array to only include available courts
+    let courtsToAttempt = courts;
+
+    if (availableCourts.length > 0) {
+      // Filter courts to only include those that are available
+      courtsToAttempt = courts.filter(court => availableCourts.includes(court));
+
+      const filteredOut = courts.filter(court => !availableCourts.includes(court));
+      if (filteredOut.length > 0) {
+        console.log(`[PlaywrightBooking] ⚠️  Filtered out unavailable courts: ${filteredOut.join(', ')}`);
+      }
+
+      if (courtsToAttempt.length === 0) {
+        console.log('[PlaywrightBooking] ❌ None of the requested courts are available!');
+        await browser.close();
+        return {
+          success: false,
+          error: `None of the requested courts (${courts.join(', ')}) are available at ${time} minutes`
+        };
+      }
+
+      console.log(`[PlaywrightBooking] ✅ Courts to attempt (available only): ${courtsToAttempt.join(', ')}`);
+    } else {
+      console.log('[PlaywrightBooking] ⚠️  Availability check returned no results, will try all courts');
+    }
+
+    console.log('');
+
+    // ===================================================================
     // PHASE 2: TRY EACH COURT WITH SAME SESSION
     // ===================================================================
     console.log('[PlaywrightBooking] Phase 2: Trying courts sequentially with same session');
@@ -298,7 +456,7 @@ async function executeBooking(params) {
 
     let finalResult = null;
 
-    for (const court of courts) {
+    for (const court of courtsToAttempt) {
       const result = await tryBookCourt(page, context, court, date, time, guestName);
 
       if (result.success) {
@@ -330,7 +488,7 @@ async function executeBooking(params) {
     } else {
       return {
         success: false,
-        error: `All courts unavailable. Tried: ${courts.join(', ')}`
+        error: `All courts unavailable. Tried: ${courtsToAttempt.join(', ')}`
       };
     }
 
