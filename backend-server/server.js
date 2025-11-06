@@ -151,63 +151,34 @@ async function checkAndExecuteBookings() {
         // Convert time to minutes (e.g., "09:00" -> "540")
         const timeInMinutes = convertTimeToMinutes(booking.booking_time);
 
-        // Execute booking with Playwright
+        // Execute booking with Playwright (OPTIMIZED VERSION)
         console.log('[Server] Executing booking with Playwright automation...');
         console.log(`[Server] Preferred court: ${booking.preferred_court}`);
         console.log(`[Server] Accept any court: ${booking.accept_any_court}`);
 
-        let result = null;
-        let attemptedCourts = [];
-        let successfulCourt = null;
+        // Build courts array: preferred first, then alternatives if accept_any_court is true
+        const courtsToTry = [booking.preferred_court.toString()];
+        if (booking.accept_any_court) {
+          const allCourts = ['1', '2', '3', '4', '5', '6'];
+          const alternateCourts = allCourts.filter(c => c !== booking.preferred_court.toString());
+          courtsToTry.push(...alternateCourts);
+        }
 
-        // Try preferred court first
-        console.log(`[Server] Attempting to book Court ${booking.preferred_court}...`);
-        attemptedCourts.push(booking.preferred_court);
+        console.log(`[Server] Courts to attempt: ${courtsToTry.join(', ')}`);
+        console.log('[Server] Browser will stay open for all attempts (optimized!)');
 
-        result = await executeBooking({
+        // Execute booking ONCE with all courts - browser stays open for all attempts
+        const result = await executeBooking({
           username: booking.credentials.gametime_username,
           password: decryptedPassword,
-          court: booking.preferred_court.toString(),
+          courts: courtsToTry,  // Pass array of courts
           date: booking.booking_date,
           time: timeInMinutes,
           guestName: 'Guest Player'
         });
 
-        if (result.success) {
-          successfulCourt = booking.preferred_court;
-          console.log(`[Server] ✅ Preferred court ${booking.preferred_court} is available`);
-        } else if (booking.accept_any_court) {
-          // If preferred court failed and user accepts any court, try others
-          console.log(`[Server] Preferred court ${booking.preferred_court} unavailable. Trying alternative courts...`);
-
-          const allCourts = [1, 2, 3, 4, 5, 6];
-          const alternateCourts = allCourts.filter(c => c !== booking.preferred_court);
-
-          for (const court of alternateCourts) {
-            console.log(`[Server] Attempting to book Court ${court}...`);
-            attemptedCourts.push(court);
-
-            const altResult = await executeBooking({
-              username: booking.credentials.gametime_username,
-              password: decryptedPassword,
-              court: court.toString(),
-              date: booking.booking_date,
-              time: timeInMinutes,
-              guestName: 'Guest Player'
-            });
-
-            if (altResult.success) {
-              result = altResult;
-              successfulCourt = court;
-              console.log(`[Server] ✅ Alternative court ${court} is available!`);
-              break; // Stop trying once we find an available court
-            } else {
-              console.log(`[Server] ❌ Court ${court} is also unavailable`);
-              // Small delay between attempts to avoid rate limiting
-              await new Promise(r => setTimeout(r, 1000));
-            }
-          }
-        }
+        // Extract successful court from result
+        const successfulCourt = result.courtBooked ? parseInt(result.courtBooked) : null;
 
         // Update database based on result
         if (result.success) {
@@ -239,7 +210,7 @@ async function checkAndExecuteBookings() {
           console.log('');
         } else {
           const errorMessage = booking.accept_any_court
-            ? `No courts available. Attempted: Courts ${attemptedCourts.join(', ')}`
+            ? `No courts available. Attempted: Courts ${courtsToTry.join(', ')}`
             : `Court ${booking.preferred_court} is not available`;
 
           await supabase
