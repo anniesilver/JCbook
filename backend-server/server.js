@@ -140,8 +140,13 @@ async function checkAndExecuteBookings() {
         console.log('[Server] Decrypting GameTime password...');
         const decryptedPassword = decryptPassword(
           booking.credentials.gametime_password,
-          booking.credentials.id
+          booking.user_id  // Use USER ID, not credential ID!
         );
+
+        console.log('[Server] Fetched credentials from database:');
+        console.log(`[Server] - Username: ${booking.credentials.gametime_username}`);
+        console.log(`[Server] - Password length: ${decryptedPassword ? decryptedPassword.length : 0} chars`);
+        console.log(`[Server] - Password starts with: ${decryptedPassword ? decryptedPassword.substring(0, 3) + '...' : 'EMPTY'}`);
 
         // Convert time to minutes (e.g., "09:00" -> "540")
         const timeInMinutes = convertTimeToMinutes(booking.booking_time);
