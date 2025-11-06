@@ -153,7 +153,18 @@ async function checkAndExecuteBookings() {
 
         // Execute booking with Playwright
         console.log('[Server] Executing booking with Playwright automation...');
-        const result = await executeBooking({
+        console.log(`[Server] Preferred court: ${booking.preferred_court}`);
+        console.log(`[Server] Accept any court: ${booking.accept_any_court}`);
+
+        let result = null;
+        let attemptedCourts = [];
+        let successfulCourt = null;
+
+        // Try preferred court first
+        console.log(`[Server] Attempting to book Court ${booking.preferred_court}...`);
+        attemptedCourts.push(booking.preferred_court);
+
+        result = await executeBooking({
           username: booking.credentials.gametime_username,
           password: decryptedPassword,
           court: booking.preferred_court.toString(),
@@ -162,15 +173,59 @@ async function checkAndExecuteBookings() {
           guestName: 'Guest Player'
         });
 
+        if (result.success) {
+          successfulCourt = booking.preferred_court;
+          console.log(`[Server] ✅ Preferred court ${booking.preferred_court} is available`);
+        } else if (booking.accept_any_court) {
+          // If preferred court failed and user accepts any court, try others
+          console.log(`[Server] Preferred court ${booking.preferred_court} unavailable. Trying alternative courts...`);
+
+          const allCourts = [1, 2, 3, 4, 5, 6];
+          const alternateCourts = allCourts.filter(c => c !== booking.preferred_court);
+
+          for (const court of alternateCourts) {
+            console.log(`[Server] Attempting to book Court ${court}...`);
+            attemptedCourts.push(court);
+
+            const altResult = await executeBooking({
+              username: booking.credentials.gametime_username,
+              password: decryptedPassword,
+              court: court.toString(),
+              date: booking.booking_date,
+              time: timeInMinutes,
+              guestName: 'Guest Player'
+            });
+
+            if (altResult.success) {
+              result = altResult;
+              successfulCourt = court;
+              console.log(`[Server] ✅ Alternative court ${court} is available!`);
+              break; // Stop trying once we find an available court
+            } else {
+              console.log(`[Server] ❌ Court ${court} is also unavailable`);
+              // Small delay between attempts to avoid rate limiting
+              await new Promise(r => setTimeout(r, 1000));
+            }
+          }
+        }
+
         // Update database based on result
         if (result.success) {
+          let successMessage = '';
+          if (successfulCourt === booking.preferred_court) {
+            successMessage = `Booking confirmed on Court ${successfulCourt}`;
+          } else {
+            successMessage = `Court ${booking.preferred_court} was unavailable. Booking confirmed on Court ${successfulCourt} instead`;
+          }
+
           await supabase
             .from('bookings')
             .update({
               status: 'confirmed',
               auto_book_status: 'success',
               gametime_confirmation_id: result.bookingId,
-              actual_court: result.actualCourtId,
+              actual_court: successfulCourt,
+              error_message: successMessage,
               updated_at: new Date().toISOString()
             })
             .eq('id', booking.id);
@@ -178,15 +233,20 @@ async function checkAndExecuteBookings() {
           console.log('');
           console.log(`[Server] ✅ Booking ${booking.id} CONFIRMED`);
           console.log(`[Server] Confirmation ID: ${result.bookingId}`);
-          console.log(`[Server] Actual Court ID: ${result.actualCourtId}`);
+          console.log(`[Server] Actual Court: ${successfulCourt}`);
+          console.log(`[Server] Message: ${successMessage}`);
           console.log(`[Server] Token submission time: ${result.timeGap}ms`);
           console.log('');
         } else {
+          const errorMessage = booking.accept_any_court
+            ? `No courts available. Attempted: Courts ${attemptedCourts.join(', ')}`
+            : `Court ${booking.preferred_court} is not available`;
+
           await supabase
             .from('bookings')
             .update({
               auto_book_status: 'failed',
-              error_message: result.error || 'Booking rejected by GameTime',
+              error_message: errorMessage,
               retry_count: booking.retry_count + 1,
               updated_at: new Date().toISOString()
             })
@@ -194,7 +254,7 @@ async function checkAndExecuteBookings() {
 
           console.log('');
           console.log(`[Server] ❌ Booking ${booking.id} FAILED`);
-          console.log(`[Server] Error: ${result.error}`);
+          console.log(`[Server] Error: ${errorMessage}`);
           console.log(`[Server] Retry count: ${booking.retry_count + 1}/3`);
           console.log('');
         }
