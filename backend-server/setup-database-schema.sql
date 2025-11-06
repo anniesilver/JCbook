@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   auto_book_status TEXT NOT NULL DEFAULT 'pending' CHECK (auto_book_status IN ('pending', 'in_progress', 'success', 'failed')),
   gametime_confirmation_id TEXT,
   actual_court INTEGER,
-  error_message TEXT,
+  status_message TEXT,
   retry_count INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
