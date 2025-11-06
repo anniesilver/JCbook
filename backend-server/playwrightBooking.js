@@ -177,10 +177,6 @@ async function getAvailableCourts(page, date, time) {
     console.log(`[PlaywrightBooking] Available courts at ${time} minutes: ${availableCourts.length > 0 ? availableCourts.join(', ') : 'None'}`);
     console.log('');
 
-    // DEBUG: Take a screenshot for verification
-    await page.screenshot({ path: `backend-server/schedule-debug-${Date.now()}.png`, fullPage: true });
-    console.log('[PlaywrightBooking] Screenshot saved for verification');
-
     return availableCourts;
 
   } catch (error) {
@@ -490,20 +486,6 @@ async function executeBooking(params) {
     }
 
     console.log('');
-
-    // DEBUG MODE: Exit after availability check
-    console.log('[PlaywrightBooking] 🛑 DEBUG MODE: Stopping after availability check');
-    console.log('[PlaywrightBooking] Review the screenshot and browser console output above');
-    await browser.close();
-    return {
-      success: false,
-      error: 'DEBUG MODE: Stopped after availability check',
-      debugInfo: {
-        availableCourts: availableCourts,
-        courtsToAttempt: courtsToAttempt,
-        originalCourts: courts
-      }
-    };
 
     // ===================================================================
     // PHASE 2: TRY EACH COURT WITH SAME SESSION
