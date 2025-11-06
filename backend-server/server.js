@@ -104,7 +104,7 @@ async function checkAndExecuteBookings() {
           .from('bookings')
           .update({
             auto_book_status: 'failed',
-            error_message: 'Credentials not found for user',
+            status_message: 'Credentials not found for user',
             retry_count: booking.retry_count + 1
           })
           .eq('id', booking.id);
@@ -225,7 +225,7 @@ async function checkAndExecuteBookings() {
               auto_book_status: 'success',
               gametime_confirmation_id: result.bookingId,
               actual_court: successfulCourt,
-              error_message: successMessage,
+              status_message: successMessage,
               updated_at: new Date().toISOString()
             })
             .eq('id', booking.id);
@@ -246,7 +246,7 @@ async function checkAndExecuteBookings() {
             .from('bookings')
             .update({
               auto_book_status: 'failed',
-              error_message: errorMessage,
+              status_message: errorMessage,
               retry_count: booking.retry_count + 1,
               updated_at: new Date().toISOString()
             })
@@ -266,7 +266,7 @@ async function checkAndExecuteBookings() {
           .from('bookings')
           .update({
             auto_book_status: 'failed',
-            error_message: error.message,
+            status_message: error.message,
             retry_count: booking.retry_count + 1,
             updated_at: new Date().toISOString()
           })
