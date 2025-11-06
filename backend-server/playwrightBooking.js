@@ -133,21 +133,35 @@ async function getAvailableCourts(page, date, time) {
 
             // Check for player names (indicates booked)
             const namesDiv = slot.querySelector('.names');
-            const hasNames = namesDiv && namesDiv.textContent.trim().length > 0;
+            const hasNames = namesDiv ? namesDiv.textContent.trim().length > 0 : false;
 
             // Check for "Instr:" text (indicates instructor booking)
             const hasInstructor = slot.textContent.includes('Instr:');
 
-            // Check background color (yellowish = available, others = booked)
-            const isYellowish = bgColor.includes('173, 207, 83') || bgColor.includes('rgba(173, 207, 83');
+            // Parse RGB color
+            const rgbMatch = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+            let isAvailableColor = false;
+            if (rgbMatch) {
+              const r = parseInt(rgbMatch[1]);
+              const g = parseInt(rgbMatch[2]);
+              const b = parseInt(rgbMatch[3]);
+
+              // Booked colors are typically: pink (high R, high B), blue (high B), or dark colors
+              // Available colors are light/beige/yellowish with balanced RGB values
+              const isPink = r > 200 && b > 150 && g < 150;
+              const isBlue = b > 150 && r < 150 && g < 200;
+              const isDark = r < 100 && g < 100 && b < 100;
+
+              isAvailableColor = !isPink && !isBlue && !isDark;
+            }
 
             console.log(`  bgColor: ${bgColor}`);
             console.log(`  hasNames: ${hasNames}`);
             console.log(`  hasInstructor: ${hasInstructor}`);
-            console.log(`  isYellowish: ${isYellowish}`);
+            console.log(`  isAvailableColor: ${isAvailableColor}`);
 
-            // Available if: yellowish background AND no names AND no instructor
-            if (isYellowish && !hasNames && !hasInstructor) {
+            // Available if: light background color AND no names AND no instructor
+            if (isAvailableColor && !hasNames && !hasInstructor) {
               results.push(courtNumber);
               console.log(`  ✓ Court ${courtNumber} is AVAILABLE`);
             } else {
