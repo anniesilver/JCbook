@@ -132,7 +132,7 @@ export interface Booking {
   auto_book_status: AutoBookStatus;
   scheduled_execute_time: string; // When to execute the auto-booking
   gametime_confirmation_id?: string;
-  error_message?: string;
+  status_message?: string; // Success or error message
   retry_count: number;
   created_at: string;
   updated_at: string;
