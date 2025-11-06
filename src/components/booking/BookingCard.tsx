@@ -117,16 +117,20 @@ export const BookingCard: React.FC<BookingCardProps> = ({
           <Text style={styles.detailLabel}>Duration:</Text>
           <Text style={styles.detailValue}>{booking.duration_hours} hour{booking.duration_hours > 1 ? 's' : ''}</Text>
         </View>
-        {booking.auto_book_status === 'confirmed' && booking.gametime_confirmation_id && (
+        {booking.auto_book_status === 'success' && booking.gametime_confirmation_id && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Confirmation:</Text>
             <Text style={styles.detailValue}>{booking.gametime_confirmation_id}</Text>
           </View>
         )}
-        {booking.auto_book_status === 'failed' && booking.error_message && (
-          <View style={styles.errorRow}>
-            <Text style={styles.errorLabel}>Error:</Text>
-            <Text style={styles.errorValue}>{booking.error_message}</Text>
+        {booking.status_message && (
+          <View style={booking.auto_book_status === 'failed' ? styles.errorRow : styles.successRow}>
+            <Text style={booking.auto_book_status === 'failed' ? styles.errorLabel : styles.successLabel}>
+              {booking.auto_book_status === 'failed' ? 'Error:' : 'Status:'}
+            </Text>
+            <Text style={booking.auto_book_status === 'failed' ? styles.errorValue : styles.successValue}>
+              {booking.status_message}
+            </Text>
           </View>
         )}
       </View>
@@ -217,6 +221,25 @@ const styles = StyleSheet.create({
   errorValue: {
     fontSize: 12,
     color: '#DC3545',
+    flex: 1,
+    marginLeft: 8,
+  },
+  successRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    backgroundColor: '#D4EDDA',
+    borderRadius: 6,
+    padding: 8,
+  },
+  successLabel: {
+    fontSize: 12,
+    color: '#155724',
+    fontWeight: '600',
+  },
+  successValue: {
+    fontSize: 12,
+    color: '#155724',
     flex: 1,
     marginLeft: 8,
   },

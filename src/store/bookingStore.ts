@@ -236,7 +236,7 @@ export const useBookingStore = create<BookingStore>()(
               // Use Object.assign to mutate the existing object (works with immer)
               Object.assign(state.bookings[index], booking);
               state.bookings[index].auto_book_status = 'pending';
-              state.bookings[index].error_message = null;
+              state.bookings[index].status_message = null;
             }
           });
         }

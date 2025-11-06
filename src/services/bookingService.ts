@@ -371,7 +371,7 @@ export async function updateBookingWithError(
       .from("bookings")
       .update({
         auto_book_status: retryCount < 3 ? "pending" : "failed", // Allow 3 retries
-        error_message: errorMessage,
+        status_message: errorMessage,
         retry_count: retryCount,
       })
       .eq("id", bookingId)
