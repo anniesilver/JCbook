@@ -93,15 +93,26 @@ async function getAvailableCourts(page, date, time) {
 
       console.log('Court mapping:', courtMapping);
 
-      // DEBUG: Log first 10 rows to see time format
-      console.log('=== DEBUG: First 10 time rows ===');
-      for (let i = 1; i < Math.min(11, rows.length); i++) {
-        const cells = rows[i].querySelectorAll('td');
-        if (cells.length > 0) {
-          const timeCell = cells[0];
-          const dataTime = timeCell.getAttribute('data-time');
-          const textContent = timeCell.textContent.trim();
-          console.log(`Row ${i}: data-time="${dataTime}", text="${textContent}"`);
+      // DEBUG: Log table structure
+      console.log('=== DEBUG: Table structure ===');
+      console.log(`Header row cells: ${headerRow.querySelectorAll('th, td').length}`);
+
+      if (rows.length > 1) {
+        const dataRow = rows[1];
+        const dataCells = dataRow.querySelectorAll('td');
+        console.log(`Data row has ${dataCells.length} cells`);
+
+        // Log structure of first court cell (should be index 1, after time column)
+        if (dataCells.length > 1) {
+          const firstCourtCell = dataCells[1];
+          console.log('=== First Court Cell Structure ===');
+          console.log(`innerHTML length: ${firstCourtCell.innerHTML.length}`);
+          console.log(`Child elements: ${firstCourtCell.children.length}`);
+          console.log(`First 500 chars of HTML: ${firstCourtCell.innerHTML.substring(0, 500)}`);
+
+          // Look for time slot elements (might be divs, spans, or clickable elements)
+          const clickableElements = firstCourtCell.querySelectorAll('[onclick], [data-time], .timeslot, .time-slot');
+          console.log(`Clickable/time-slot elements found: ${clickableElements.length}`);
         }
       }
 
