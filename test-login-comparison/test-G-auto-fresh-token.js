@@ -111,7 +111,7 @@ async function runTest() {
     // ===================================================================
     console.log('3️⃣  PHASE 3: Loading Booking Form\n');
 
-    const bookingFormUrl = 'https://jct.gametime.net/scheduling/index/book/sport/1/court/52/date/2025-11-3/time/540';
+    const bookingFormUrl = 'https://jct.gametime.net/scheduling/index/book/sport/1/court/52/date/2025-11-7/time/1320';
 
     console.log('   → Navigating to booking form...\n');
     await page.goto(bookingFormUrl, { waitUntil: 'networkidle', timeout: 30000 });
@@ -210,8 +210,8 @@ async function runTest() {
     formData.append('duration', '30');
     formData.append('g-recaptcha-response', freshToken);  // FRESH TOKEN HERE!
     formData.append('court', '52');
-    formData.append('date', '2025-11-03');
-    formData.append('time', '540');
+    formData.append('date', '2025-11-07');
+    formData.append('time', '1320');
     formData.append('sportSel', '1');
     formData.append('duration', '60');
     formData.append('rtype', '13');
