@@ -15,16 +15,12 @@ const { chromium } = require('playwright');
  * Court Number (shown to users) → GameTime Court ID (used in URLs/forms)
  */
 const COURT_ID_MAPPING = {
-  '1': '52',
-  '2': '53',
-  '3': '54',
-  '4': '55',
-  '5': '56',
-  '6': '57',
-  '7': '58',
-  '8': '59',
-  '9': '60',
-  '10': '61'
+  '1': '50',
+  '2': '51',
+  '3': '52',
+  '4': '53',
+  '5': '54',
+  '6': '55'  
 };
 
 /**
@@ -51,6 +47,7 @@ async function executeBooking(params) {
   const { username, password, court, date, time, guestName = 'Guest Player' } = params;
 
   console.log(`[PlaywrightBooking] Starting booking execution for court ${court} on ${date} at ${time}`);
+  console.log(`[PlaywrightBooking] Using credentials - Username: ${username}`);
 
   let browser = null;
   let context = null;
@@ -63,7 +60,7 @@ async function executeBooking(params) {
     console.log('[PlaywrightBooking] Phase 1: Automated Login');
 
     browser = await chromium.launch({
-      headless: true, // Run headless in production
+      headless: false, // TEMPORARILY non-headless for debugging
       args: ['--disable-blink-features=AutomationControlled']
     });
 
@@ -120,8 +117,18 @@ async function executeBooking(params) {
       // Navigation might complete without full networkidle
     }
 
-    console.log('[PlaywrightBooking] Login completed');
+    // Verify login succeeded by checking the URL or page content
     await new Promise(r => setTimeout(r, 2000));
+
+    const currentUrl = page.url();
+    console.log(`[PlaywrightBooking] Current URL after login: ${currentUrl}`);
+
+    // Check if still on auth page (login failed)
+    if (currentUrl.includes('/auth')) {
+      throw new Error('Login failed - still on auth page. Please check credentials.');
+    }
+
+    console.log('[PlaywrightBooking] Login completed');
 
     // ===================================================================
     // PHASE 2: CAPTURE COOKIES
@@ -165,10 +172,17 @@ async function executeBooking(params) {
     console.log(`[PlaywrightBooking] Navigating to booking form: ${bookingFormUrl}`);
     await page.goto(bookingFormUrl, { waitUntil: 'networkidle', timeout: 30000 });
 
+    console.log('[PlaywrightBooking] Booking form page loaded');
+
+    // Take screenshot for debugging
+    await page.screenshot({ path: `booking-form-debug-${Date.now()}.png` }).catch(() => {});
+
     console.log('[PlaywrightBooking] Waiting for form fields...');
     // Hidden inputs need state: 'attached' instead of 'visible'
     await page.waitForSelector('input[name="temp"]', { timeout: 10000, state: 'attached' });
     await page.waitForSelector('input[name="players[1][user_id]"]', { timeout: 10000, state: 'attached' });
+
+    console.log('[PlaywrightBooking] Form fields ready');
 
     console.log('[PlaywrightBooking] Waiting for reCAPTCHA to load...');
 
