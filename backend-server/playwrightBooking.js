@@ -51,6 +51,11 @@ async function getAvailableCourts(page, date, time) {
     // Extra wait for dynamic content to update (hash navigation might trigger AJAX)
     await new Promise(r => setTimeout(r, 2000));
 
+    // Capture browser console logs (so we can see debug output from page.evaluate)
+    page.on('console', msg => {
+      console.log(`[Browser Console] ${msg.text()}`);
+    });
+
     // Extract availability data using page.evaluate
     const availableCourts = await page.evaluate((targetTime) => {
       const results = [];
