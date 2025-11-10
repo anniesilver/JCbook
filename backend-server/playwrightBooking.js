@@ -26,7 +26,8 @@ const COURT_ID_MAPPING = {
  * @param {Page} page - Playwright page object (already logged in)
  * @param {string} date - Booking date in YYYY-MM-DD format
  * @param {string} time - Time in minutes from midnight (e.g., "540" = 9:00 AM)
- * @returns {Promise<string[]>} Array of available court numbers (e.g., ["1", "3", "5"])
+ * @returns {Promise<string[]|null>} Array of available court numbers (e.g., ["1", "3", "5"]),
+ *                                    empty array [] if none available, or null if check failed
  */
 async function getAvailableCourts(page, date, time) {
   try {
@@ -176,8 +177,8 @@ async function getAvailableCourts(page, date, time) {
     console.error(`[PlaywrightBooking] Error checking availability: ${error.message}`);
     console.log('[PlaywrightBooking] Proceeding with all courts (availability check failed)');
     console.log('');
-    // If availability check fails, return empty array (caller will use all courts)
-    return [];
+    // Return null to indicate check failed (caller should try all courts as fallback)
+    return null;
   }
 }
 
@@ -447,8 +448,21 @@ async function executeBooking(params) {
     // Filter courts array to only include available courts
     let courtsToAttempt = courts;
 
-    if (availableCourts.length > 0) {
-      // Filter courts to only include those that are available
+    if (availableCourts === null) {
+      // Availability check failed - use all courts as fallback
+      console.log('[PlaywrightBooking] ⚠️  Availability check failed, will try all courts as fallback');
+      courtsToAttempt = courts;
+    } else if (availableCourts.length === 0) {
+      // Availability check succeeded but found NO available courts - don't try any
+      console.log('[PlaywrightBooking] ❌ Availability check shows ALL courts are unavailable!');
+      console.log('[PlaywrightBooking] Not attempting any bookings - would waste time and fail anyway');
+      await browser.close();
+      return {
+        success: false,
+        error: `All courts (${courts.join(', ')}) are unavailable at this time. Booking not attempted.`
+      };
+    } else {
+      // Availability check succeeded and found some available courts - filter the list
       courtsToAttempt = courts.filter(court => availableCourts.includes(court));
 
       const filteredOut = courts.filter(court => !availableCourts.includes(court));
@@ -466,8 +480,6 @@ async function executeBooking(params) {
       }
 
       console.log(`[PlaywrightBooking] ✅ Courts to attempt (available only): ${courtsToAttempt.join(', ')}`);
-    } else {
-      console.log('[PlaywrightBooking] ⚠️  Availability check returned no results, will try all courts');
     }
 
     console.log('');
