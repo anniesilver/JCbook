@@ -459,7 +459,8 @@ async function executeBooking(params) {
       await browser.close();
       return {
         success: false,
-        error: `All courts (${courts.join(', ')}) are unavailable at this time. Booking not attempted.`
+        error: `All courts are unavailable at this time. Booking not attempted.`,
+        nonRetryable: true  // Don't retry - courts are simply booked by others
       };
     } else {
       // Availability check succeeded and found some available courts - filter the list
@@ -475,7 +476,8 @@ async function executeBooking(params) {
         await browser.close();
         return {
           success: false,
-          error: `None of the requested courts (${courts.join(', ')}) are available at ${time} minutes`
+          error: `None of the requested courts are available at this time.`,
+          nonRetryable: true  // Don't retry - requested courts are booked by others
         };
       }
 
