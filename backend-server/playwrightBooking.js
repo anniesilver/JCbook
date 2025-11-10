@@ -366,12 +366,12 @@ async function tryBookCourt(page, context, court, date, time, guestName) {
  * @param {Array<string>} params.courts - Array of court IDs to try in order (e.g., ["3", "1", "2"])
  * @param {string} params.date - Booking date in YYYY-MM-DD format
  * @param {string} params.time - Time in minutes from midnight (e.g., "540" = 9:00 AM)
- * @param {string} [params.guestName] - Guest player name (default: "Guest Player")
+ * @param {string} [params.guestName] - Guest player name (default: "G")
  *
  * @returns {Promise<Object>} Result object
  */
 async function executeBooking(params) {
-  const { username, password, courts, date, time, guestName = 'Guest Player' } = params;
+  const { username, password, courts, date, time, guestName = 'G' } = params;
 
   console.log(`[PlaywrightBooking] ========================================`);
   console.log(`[PlaywrightBooking] Starting booking execution`);
