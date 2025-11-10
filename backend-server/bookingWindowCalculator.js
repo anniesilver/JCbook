@@ -12,48 +12,61 @@ const GAMETIME_TIMEZONE = 'America/New_York';
  * Calculate when a booking slot opens for reservation
  *
  * @param {string} targetDate - Booking date in YYYY-MM-DD format
- * @returns {Date} When the booking slot opens (local time)
+ * @returns {Date} When the booking slot opens (as Date object, works in any timezone)
  *
  * Example:
  * - Target: Nov 21, 2025
  * - Opens: Nov 15, 2025 at 8:00 AM EST
  */
 function calculateBookingOpenTime(targetDate) {
-  // Parse target date at 8:00 AM in GameTime timezone
-  // We need to create a date object that represents 8:00 AM on the target date
-  // in GameTime's timezone, then convert to local time
+  /**
+   * Helper: Get EST/EDT offset from UTC for a given date (handles DST automatically)
+   * @returns {number} Offset in hours (e.g., 5 for EST, 4 for EDT)
+   */
+  function getESTOffsetHours(year, month, day) {
+    // Create a UTC date at noon
+    const utcDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
 
+    // Format the same moment in EST timezone
+    const estString = utcDate.toLocaleString('en-US', {
+      timeZone: GAMETIME_TIMEZONE,
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    // Parse EST hour
+    const estHour = parseInt(estString.split(':')[0]);
+    const utcHour = 12;
+
+    // Calculate offset (how many hours to add to UTC to get EST)
+    // EST is typically UTC-5, EDT is UTC-4
+    // So if UTC is 12:00 and EST shows 07:00, offset is -5
+    let offset = estHour - utcHour;
+
+    // Handle day boundary crossing
+    if (offset > 12) offset -= 24;
+    if (offset < -12) offset += 24;
+
+    return -offset; // Return positive offset (hours to ADD to EST to get UTC)
+  }
+
+  // Parse target date
   const [year, month, day] = targetDate.split('-').map(Number);
 
-  // Create date in UTC, then we'll adjust for GameTime timezone
-  const targetDate8AM = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0)); // Noon UTC as starting point
+  // Get EST offset for the target date (handles DST automatically)
+  const offsetHours = getESTOffsetHours(year, month, day);
 
-  // Get the actual time in GameTime timezone by creating a formatter
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: GAMETIME_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  });
+  // Create UTC timestamp for "target date at 8:00 AM EST"
+  // If offset is 5 (EST = UTC-5), then 8:00 AM EST = 13:00 UTC
+  const targetAt8amEST_UTC = Date.UTC(year, month - 1, day, 8 + offsetHours, 0, 0, 0);
 
-  // Parse the target date at 8:00 AM in GameTime timezone
-  const targetStr = `${targetDate}T08:00:00`;
-  const targetParts = targetStr.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+  // Subtract 6 days (in milliseconds)
+  const sixDaysInMs = 6 * 24 * 60 * 60 * 1000;
+  const openTime_UTC = targetAt8amEST_UTC - sixDaysInMs;
 
-  // Create date string that will be interpreted in local time, but represents GameTime timezone
-  // This is tricky - we need to figure out what local time equals 8am GameTime timezone
-  const targetDateInGameTimeZone = new Date(targetStr);
-
-  // Booking opens 6 days before at 8:00 AM GameTime timezone
-  const openTime = new Date(targetDateInGameTimeZone);
-  openTime.setDate(openTime.getDate() - 6);
-  openTime.setHours(8, 0, 0, 0);
-
-  return openTime;
+  // Return as Date object (will display correctly in any timezone)
+  return new Date(openTime_UTC);
 }
 
 /**
