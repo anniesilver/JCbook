@@ -20,7 +20,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { executeBooking, executeBookingPrecisionTimed } = require('./playwrightBooking');
 const { decryptPassword } = require('./decryptPassword');
 const { getBookingStrategy, formatInGameTimeZone } = require('./bookingWindowCalculator');
-const { syncWithGameTimeServer, isTimeSyncFresh } = require('./timeSync');
+const { syncWithGameTimeServer, measureNetworkLatency, isTimeSyncFresh } = require('./timeSync');
 require('dotenv').config();
 
 // Track scheduled bookings to avoid double-scheduling
@@ -348,13 +348,47 @@ async function checkForNewBookings() {
   }
 }
 
-console.log('[Server] ✅ Server started successfully');
-console.log(`[Server] Polling interval: ${CHECK_INTERVAL_MS / 1000 / 60} minutes`);
-console.log('[Server] Press Ctrl+C to stop');
-console.log('');
-
-// Run initial check immediately on startup
+// Test network latency on startup
 (async () => {
+  console.log('[Server] Testing network latency to GameTime server...');
+  console.log('');
+
+  try {
+    const rtt = await measureNetworkLatency();
+    const tokenDelay = rtt + 200;
+
+    console.log('');
+    console.log('========================================');
+    console.log('[Server] Network Configuration');
+    console.log('========================================');
+    console.log(`[Server] Baseline RTT:           ${rtt}ms`);
+    console.log(`[Server] Token generation delay: T-${tokenDelay}ms (RTT + 200ms safety buffer)`);
+    console.log(`[Server] This means in PRECISION mode:`);
+    console.log(`[Server]   - Token will be generated ${tokenDelay}ms before T-0`);
+    console.log(`[Server]   - Submit will happen at T-0 (8:00:00.000 AM)`);
+    console.log(`[Server]   - Expected arrival at server: ~${Math.floor(rtt/2)}ms after T-0`);
+    console.log('========================================');
+    console.log('');
+
+    if (rtt > 300) {
+      console.log('⚠️  WARNING: High network latency detected!');
+      console.log(`⚠️  RTT of ${rtt}ms is quite high. Consider:`);
+      console.log('⚠️  1. Running server closer to US East Coast');
+      console.log('⚠️  2. Using a VPN with US servers');
+      console.log('⚠️  3. Checking network connection quality');
+      console.log('');
+    }
+  } catch (error) {
+    console.error('[Server] Failed to measure network latency:', error.message);
+    console.log('[Server] Will use 150ms default RTT + 200ms buffer = T-350ms for token generation');
+    console.log('');
+  }
+
+  console.log('[Server] ✅ Server started successfully');
+  console.log(`[Server] Polling interval: ${CHECK_INTERVAL_MS / 1000 / 60} minutes`);
+  console.log('[Server] Press Ctrl+C to stop');
+  console.log('');
+
   console.log('[Server] Running initial check...');
   console.log('');
   await checkForNewBookings();
