@@ -750,7 +750,19 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
       throw new Error('Failed to generate reCAPTCHA token');
     }
 
-    logPrecisionEvent('T-100ms', '✓ Token ready, preparing to submit...');
+    // Check how much time we have left until T-0
+    const nowAfterToken = getCurrentSyncedTime();
+    const timeUntilSubmit = T - nowAfterToken;
+
+    if (timeUntilSubmit > 0) {
+      logPrecisionEvent(`T-${timeUntilSubmit}ms`, `✓ Token ready! ${timeUntilSubmit}ms until submit...`);
+    } else {
+      // We're already past T-0! Submit immediately
+      console.log('');
+      console.log('⚠️  WARNING: Token generation took longer than expected!');
+      console.log(`⚠️  We are ${Math.abs(timeUntilSubmit)}ms LATE - submitting immediately...`);
+      console.log('');
+    }
 
     // Get cookies for HTTP POST (reusable for all courts)
     const cookies = await context.cookies();
@@ -759,6 +771,7 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
     // ===================================================================
     // T-0: SUBMIT FORM (try all courts sequentially if needed)
     // ===================================================================
+    // Wait until T-0 (or proceed immediately if already past T-0)
     await waitUntilSynced(T);
 
     let finalResult = null;
