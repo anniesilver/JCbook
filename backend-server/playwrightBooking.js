@@ -20,13 +20,6 @@ const COURT_ID_MAPPING = {
 };
 
 /**
- * Random delay helper (mimics human behavior)
- */
-function randomDelay(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-/**
  * Check which courts are available at the requested date/time
  * Navigates to the Tennis schedule page and parses the availability table
  *
@@ -402,26 +395,18 @@ async function executeBooking(params) {
     console.log('[PlaywrightBooking] Loading login page...');
     await page.goto('https://jct.gametime.net/auth', { waitUntil: 'networkidle', timeout: 30000 });
 
-    await new Promise(r => setTimeout(r, randomDelay(1000, 2000)));
-
     console.log('[PlaywrightBooking] Entering credentials...');
     const usernameField = await page.$('input[type="text"]');
     if (!usernameField) throw new Error('Username field not found');
 
     await usernameField.click();
-    await new Promise(r => setTimeout(r, randomDelay(200, 400)));
-    await usernameField.type(username, { delay: randomDelay(50, 150) });
-
-    await new Promise(r => setTimeout(r, randomDelay(500, 800)));
+    await usernameField.type(username);
 
     const passwordField = await page.$('input[type="password"]');
     if (!passwordField) throw new Error('Password field not found');
 
     await passwordField.click();
-    await new Promise(r => setTimeout(r, randomDelay(200, 400)));
-    await passwordField.type(password, { delay: randomDelay(50, 150) });
-
-    await new Promise(r => setTimeout(r, randomDelay(500, 1000)));
+    await passwordField.type(password);
 
     console.log('[PlaywrightBooking] Clicking login button...');
     const loginButton = await page.$('input[type="submit"]') ||
