@@ -547,14 +547,16 @@ async function executeBooking(params) {
 
 /**
  * Execute booking with precision timing for 8:00 AM GameTime submission
- * Uses timeline-based execution with server time sync
+ * Uses timeline-based execution with server time sync and measured network latency
  *
- * Timeline (T = target 8:00:00.000 AM):
- * - T-10s: Login
- * - T-5s:  Check availability
- * - T-2s:  Navigate to form
- * - T-1s:  Generate reCAPTCHA token
- * - T-100ms: Submit (accounting for network latency)
+ * NEW OPTIMIZED Timeline (T = target 8:00:00.000 AM):
+ * - T-30s: Login + verify session
+ * - T-20s: Check court availability + filter courts
+ * - T-15s: Navigate to first court's form + extract fields
+ * - T-5s:  Measure network latency (3x HEAD requests)
+ * - T-(RTT+200ms): Generate fresh reCAPTCHA token
+ * - T-0:   Submit form (arrives at server exactly on time)
+ * - If fail: Immediately try next available court
  *
  * @param {Object} params - Same as executeBooking params
  * @param {number} targetTimestamp - Exact timestamp to submit (ms since epoch)
@@ -562,7 +564,7 @@ async function executeBooking(params) {
  */
 async function executeBookingPrecisionTimed(params, targetTimestamp) {
   const { username, password, courts, date, time, guestName = 'G' } = params;
-  const { getCurrentSyncedTime } = require('./timeSync');
+  const { getCurrentSyncedTime, measureNetworkLatency } = require('./timeSync');
   const { formatInGameTimeZone } = require('./bookingWindowCalculator');
 
   console.log('');
@@ -583,10 +585,10 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
 
   try {
     // ===================================================================
-    // T-10s: LOGIN
+    // T-30s: LOGIN + VERIFY SESSION
     // ===================================================================
-    await waitUntilSynced(T - 10000);
-    logPrecisionEvent('T-10s', 'Starting browser and logging in...');
+    await waitUntilSynced(T - 30000);
+    logPrecisionEvent('T-30s', 'Starting browser and logging in...');
 
     browser = await chromium.launch({
       headless: false,
@@ -633,13 +635,13 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
       throw new Error('Login failed - still on auth page');
     }
 
-    logPrecisionEvent('T-7s', 'Login complete ✓');
+    logPrecisionEvent('T-27s', 'Login complete ✓ Session established');
 
     // ===================================================================
-    // T-5s: CHECK AVAILABILITY
+    // T-20s: CHECK COURT AVAILABILITY + FILTER COURTS
     // ===================================================================
-    await waitUntilSynced(T - 5000);
-    logPrecisionEvent('T-5s', 'Checking court availability...');
+    await waitUntilSynced(T - 20000);
+    logPrecisionEvent('T-20s', 'Checking court availability...');
 
     const availableCourts = await getAvailableCourts(page, date, time);
 
@@ -647,11 +649,11 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
 
     if (availableCourts === null) {
       // Check failed - use all courts as fallback
-      logPrecisionEvent('T-3s', 'Availability check failed, trying all courts');
+      logPrecisionEvent('T-17s', '⚠️  Availability check failed, will try all courts');
       courtsToAttempt = courts;
     } else if (availableCourts.length === 0) {
       // No courts available
-      logPrecisionEvent('T-3s', 'No courts available - aborting ❌');
+      logPrecisionEvent('T-17s', '❌ No courts available - aborting');
       await browser.close();
       return {
         success: false,
@@ -663,7 +665,7 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
       courtsToAttempt = courts.filter(court => availableCourts.includes(court));
 
       if (courtsToAttempt.length === 0) {
-        logPrecisionEvent('T-3s', 'None of requested courts available - aborting ❌');
+        logPrecisionEvent('T-17s', '❌ None of requested courts available - aborting');
         await browser.close();
         return {
           success: false,
@@ -672,38 +674,68 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
         };
       }
 
-      logPrecisionEvent('T-3s', `Will attempt: ${courtsToAttempt.join(', ')} ✓`);
+      logPrecisionEvent('T-17s', `✓ Available courts: ${courtsToAttempt.join(', ')}`);
     }
 
     // ===================================================================
-    // T-2s: NAVIGATE TO BOOKING FORM
+    // T-15s: NAVIGATE TO FIRST COURT'S FORM + EXTRACT FIELDS
     // ===================================================================
-    await waitUntilSynced(T - 2000);
-    const firstCourt = courtsToAttempt[0];
-    logPrecisionEvent('T-2s', `Loading booking form for Court ${firstCourt}...`);
+    await waitUntilSynced(T - 15000);
+    logPrecisionEvent('T-15s', `Loading booking form for Court ${courtsToAttempt[0]}...`);
 
-    const gameTimeCourtId = COURT_ID_MAPPING[firstCourt];
     const dateParts = date.split('-');
     const formattedDate = `${dateParts[0]}-${parseInt(dateParts[1])}-${parseInt(dateParts[2])}`;
-    const bookingFormUrl = `https://jct.gametime.net/scheduling/index/book/sport/1/court/${gameTimeCourtId}/date/${formattedDate}/time/${time}`;
 
-    await page.goto(bookingFormUrl, { waitUntil: 'networkidle', timeout: 30000 });
-    await page.waitForSelector('input[name="temp"]', { timeout: 10000, state: 'attached' });
-    await page.waitForSelector('input[name="players[1][user_id]"]', { timeout: 10000, state: 'attached' });
+    // Pre-extract fields once (reusable for all courts)
+    let temp, userId, userName;
 
-    logPrecisionEvent('T-1.2s', 'Form loaded ✓');
+    for (const court of courtsToAttempt) {
+      const gameTimeCourtId = COURT_ID_MAPPING[court];
+      const bookingFormUrl = `https://jct.gametime.net/scheduling/index/book/sport/1/court/${gameTimeCourtId}/date/${formattedDate}/time/${time}`;
+
+      await page.goto(bookingFormUrl, { waitUntil: 'networkidle', timeout: 30000 });
+      await page.waitForSelector('input[name="temp"]', { timeout: 10000, state: 'attached' });
+      await page.waitForSelector('input[name="players[1][user_id]"]', { timeout: 10000, state: 'attached' });
+
+      // Extract form fields (same for all courts)
+      temp = await page.$eval('input[name="temp"]', el => el.value).catch(() => '');
+      userId = await page.$eval('input[name="players[1][user_id]"]', el => el.value).catch(() => '');
+      userName = await page.$eval('input[name="players[1][name]"]', el => el.value).catch(() => '');
+
+      if (!userId) {
+        throw new Error('Missing user_id from form extraction');
+      }
+
+      // Wait for reCAPTCHA to be ready
+      await page.waitForFunction(() => {
+        return typeof window.grecaptcha !== 'undefined';
+      }, { timeout: 10000 }).catch(() => {
+        console.log('[Precision] WARNING: grecaptcha not loaded');
+      });
+
+      break; // Only need to load first court's form to extract fields
+    }
+
+    logPrecisionEvent('T-12s', '✓ Form loaded, fields extracted, reCAPTCHA ready');
 
     // ===================================================================
-    // T-1s: GENERATE RECAPTCHA TOKEN
+    // T-5s: MEASURE NETWORK LATENCY
     // ===================================================================
-    await waitUntilSynced(T - 1000);
-    logPrecisionEvent('T-1s', 'Generating reCAPTCHA token...');
+    await waitUntilSynced(T - 5000);
+    logPrecisionEvent('T-5s', 'Measuring network latency...');
 
-    await page.waitForFunction(() => {
-      return typeof window.grecaptcha !== 'undefined';
-    }, { timeout: 10000 }).catch(() => {
-      console.log('[Precision] WARNING: grecaptcha not loaded');
-    });
+    const networkRTT = await measureNetworkLatency();
+
+    // Calculate optimal token generation time
+    // RTT + 200ms safety buffer ensures token is fresh but submission arrives on time
+    const tokenGenerationDelay = networkRTT + 200;
+    logPrecisionEvent('T-3s', `Network RTT: ${networkRTT}ms, will generate token at T-${tokenGenerationDelay}ms`);
+
+    // ===================================================================
+    // T-(RTT+200ms): GENERATE FRESH RECAPTCHA TOKEN
+    // ===================================================================
+    await waitUntilSynced(T - tokenGenerationDelay);
+    logPrecisionEvent(`T-${tokenGenerationDelay}ms`, 'Generating fresh reCAPTCHA token...');
 
     const freshToken = await page.evaluate(async () => {
       const siteKey = '6LeW9NsUAAAAAC9KRF2JvdLtGMSds7hrBdxuOnLH';
@@ -718,124 +750,130 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
       throw new Error('Failed to generate reCAPTCHA token');
     }
 
-    // Extract form fields
-    const temp = await page.$eval('input[name="temp"]', el => el.value).catch(() => '');
-    const userId = await page.$eval('input[name="players[1][user_id]"]', el => el.value).catch(() => '');
-    const userName = await page.$eval('input[name="players[1][name]"]', el => el.value).catch(() => '');
+    logPrecisionEvent('T-100ms', '✓ Token ready, preparing to submit...');
 
-    if (!userId) {
-      throw new Error('Missing user_id from form extraction');
-    }
-
-    logPrecisionEvent('T-200ms', 'Token ready ✓');
-
-    // ===================================================================
-    // T-100ms: SUBMIT (accounting for ~100ms network latency)
-    // ===================================================================
-    await waitUntilSynced(T - 100);
-    logPrecisionEvent('T-100ms', '🚀 SUBMITTING NOW!');
-
-    const submitStart = getCurrentSyncedTime();
-
-    // Get cookies for HTTP POST
+    // Get cookies for HTTP POST (reusable for all courts)
     const cookies = await context.cookies();
     const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
 
-    // Build form data
-    const formData = new URLSearchParams();
-    formData.append('edit', '');
-    formData.append('is_register', '');
-    formData.append('rt_key', '');
-    formData.append('temp', temp);
-    formData.append('upd', 'true');
-    formData.append('duration', '30');
-    formData.append('g-recaptcha-response', freshToken);
-    formData.append('court', gameTimeCourtId);
-    formData.append('date', date);
-    formData.append('time', time);
-    formData.append('sportSel', '1');
-    formData.append('duration', '60');
-    formData.append('rtype', '13');
-    formData.append('invite_for', 'Singles');
-    formData.append('players[1][user_id]', userId);
-    formData.append('players[1][name]', userName);
-    formData.append('players[2][user_id]', '');
-    formData.append('players[2][name]', guestName);
-    formData.append('players[2][guest]', 'on');
-    formData.append('players[2][guestof]', '1');
-    formData.append('payee_hide', userId);
-    formData.append('bookingWaiverPolicy', 'true');
+    // ===================================================================
+    // T-0: SUBMIT FORM (try all courts sequentially if needed)
+    // ===================================================================
+    await waitUntilSynced(T);
 
-    const submitResponse = await fetch('https://jct.gametime.net/scheduling/index/save?errs=', {
-      method: 'POST',
-      headers: {
-        'Cookie': cookieHeader,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Origin': 'https://jct.gametime.net',
-        'Referer': bookingFormUrl,
-        'Upgrade-Insecure-Requests': '1'
-      },
-      body: formData.toString(),
-      redirect: 'manual'
-    });
+    let finalResult = null;
 
-    const submitEnd = getCurrentSyncedTime();
+    for (const court of courtsToAttempt) {
+      const gameTimeCourtId = COURT_ID_MAPPING[court];
+      const bookingFormUrl = `https://jct.gametime.net/scheduling/index/book/sport/1/court/${gameTimeCourtId}/date/${formattedDate}/time/${time}`;
 
-    // Check result
-    let finalUrl = submitResponse.url;
-    let success = false;
-    let bookingId = null;
+      logPrecisionEvent('T-0', `🚀 SUBMITTING for Court ${court}!`);
+      const submitStart = getCurrentSyncedTime();
 
-    if (submitResponse.status === 302) {
-      const location = submitResponse.headers.get('location');
-      if (location) {
-        finalUrl = location.startsWith('http') ? location : 'https://jct.gametime.net' + location;
+      // Build form data
+      const formData = new URLSearchParams();
+      formData.append('edit', '');
+      formData.append('is_register', '');
+      formData.append('rt_key', '');
+      formData.append('temp', temp);
+      formData.append('upd', 'true');
+      formData.append('duration', '30');
+      formData.append('g-recaptcha-response', freshToken);
+      formData.append('court', gameTimeCourtId);
+      formData.append('date', date);
+      formData.append('time', time);
+      formData.append('sportSel', '1');
+      formData.append('duration', '60');
+      formData.append('rtype', '13');
+      formData.append('invite_for', 'Singles');
+      formData.append('players[1][user_id]', userId);
+      formData.append('players[1][name]', userName);
+      formData.append('players[2][user_id]', '');
+      formData.append('players[2][name]', guestName);
+      formData.append('players[2][guest]', 'on');
+      formData.append('players[2][guestof]', '1');
+      formData.append('payee_hide', userId);
+      formData.append('bookingWaiverPolicy', 'true');
 
-        if (finalUrl.includes('/confirmation')) {
-          success = true;
-          const bookingIdMatch = finalUrl.match(/id\/(\d+)/);
-          bookingId = bookingIdMatch ? bookingIdMatch[1] : null;
+      const submitResponse = await fetch('https://jct.gametime.net/scheduling/index/save?errs=', {
+        method: 'POST',
+        headers: {
+          'Cookie': cookieHeader,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Origin': 'https://jct.gametime.net',
+          'Referer': bookingFormUrl,
+          'Upgrade-Insecure-Requests': '1'
+        },
+        body: formData.toString(),
+        redirect: 'manual'
+      });
+
+      const submitEnd = getCurrentSyncedTime();
+
+      // Check result
+      let finalUrl = submitResponse.url;
+      let success = false;
+      let bookingId = null;
+
+      if (submitResponse.status === 302) {
+        const location = submitResponse.headers.get('location');
+        if (location) {
+          finalUrl = location.startsWith('http') ? location : 'https://jct.gametime.net' + location;
+
+          if (finalUrl.includes('/confirmation')) {
+            success = true;
+            const bookingIdMatch = finalUrl.match(/id\/(\d+)/);
+            bookingId = bookingIdMatch ? bookingIdMatch[1] : null;
+          }
         }
+      }
+
+      console.log('');
+      console.log('========================================');
+      console.log(`[PRECISION] Submission Result - Court ${court}`);
+      console.log('========================================');
+      console.log(`[Precision] HTTP Status:     ${submitResponse.status}`);
+      console.log(`[Precision] Submitted at:    ${new Date(submitStart).toISOString()}`);
+      console.log(`[Precision] GameTime TZ:     ${formatInGameTimeZone(submitStart)}`);
+      console.log(`[Precision] Target was:      ${new Date(T).toISOString()}`);
+      console.log(`[Precision] Timing accuracy: ${submitStart - T}ms`);
+      console.log(`[Precision] HTTP took:       ${submitEnd - submitStart}ms`);
+      console.log(`[Precision] Result:          ${success ? '✅ SUCCESS' : '❌ FAILED'}`);
+      if (success) {
+        console.log(`[Precision] Booking ID:      ${bookingId}`);
+      }
+      console.log('========================================');
+      console.log('');
+
+      if (success) {
+        // SUCCESS! Return result
+        finalResult = {
+          success: true,
+          bookingId: bookingId,
+          courtBooked: court,
+          actualCourtId: gameTimeCourtId,
+          confirmationUrl: finalUrl,
+          timeGap: submitEnd - submitStart
+        };
+        break; // Stop trying other courts
+      } else {
+        // Failed, try next court immediately (no delay)
+        console.log(`[Precision] Court ${court} failed, trying next court immediately...`);
       }
     }
 
-    console.log('');
-    console.log('========================================');
-    console.log('[PRECISION] Submission Completed');
-    console.log('========================================');
-    console.log(`[Precision] HTTP Status:     ${submitResponse.status}`);
-    console.log(`[Precision] Submitted at:    ${new Date(submitStart).toISOString()}`);
-    console.log(`[Precision] GameTime TZ:     ${formatInGameTimeZone(submitStart)}`);
-    console.log(`[Precision] Target was:      ${new Date(T).toISOString()}`);
-    console.log(`[Precision] Difference:      ${submitStart - T}ms`);
-    console.log(`[Precision] HTTP took:       ${submitEnd - submitStart}ms`);
-    console.log(`[Precision] Result:          ${success ? '✅ SUCCESS' : '❌ FAILED'}`);
-    if (success) {
-      console.log(`[Precision] Booking ID:      ${bookingId}`);
-      console.log(`[Precision] Court booked:    ${firstCourt}`);
-    }
-    console.log('========================================');
-    console.log('');
-
     await browser.close();
 
-    if (success) {
-      return {
-        success: true,
-        bookingId: bookingId,
-        courtBooked: firstCourt,
-        actualCourtId: gameTimeCourtId,
-        confirmationUrl: finalUrl,
-        timeGap: submitEnd - submitStart
-      };
+    if (finalResult && finalResult.success) {
+      return finalResult;
     } else {
       return {
         success: false,
-        error: `Court ${firstCourt} is unavailable`,
-        courtTried: firstCourt
+        error: `All courts unavailable. Tried: ${courtsToAttempt.join(', ')}`,
+        courtsTried: courtsToAttempt
       };
     }
 

@@ -100,17 +100,26 @@ async function scheduleBooking(booking) {
     const minutes = Math.floor((delayMs % 3600000) / 60000);
     console.log(`[Scheduler] Scheduling for ${hours}h ${minutes}m from now`);
 
-    // Sync time 10 minutes before execution
-    const syncTime = delayMs - (10 * 60 * 1000);
-    if (syncTime > 0) {
+    // Initial sync 10 minutes before execution
+    const initialSyncTime = delayMs - (10 * 60 * 1000);
+    if (initialSyncTime > 0) {
       setTimeout(async () => {
-        console.log('[Scheduler] Pre-execution time sync (T-10min)...');
+        console.log('[Scheduler] Initial time sync (T-10min)...');
         await syncWithGameTimeServer();
-      }, syncTime);
+      }, initialSyncTime);
     } else {
       // Less than 10 minutes away, sync NOW
       console.log('[Scheduler] Booking soon - syncing time now...');
       await syncWithGameTimeServer();
+    }
+
+    // Final sync 2 minutes before execution for maximum precision
+    const finalSyncTime = delayMs - (2 * 60 * 1000);
+    if (finalSyncTime > 0) {
+      setTimeout(async () => {
+        console.log('[Scheduler] Final time sync (T-2min) for maximum precision...');
+        await syncWithGameTimeServer();
+      }, finalSyncTime);
     }
 
     // Schedule the precision execution
