@@ -753,18 +753,9 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
     // Check how much time we have left until T-0
     const nowAfterToken = getCurrentSyncedTime();
     const timeUntilSubmit = T - nowAfterToken;
+    const isLate = timeUntilSubmit <= 0;
 
-    if (timeUntilSubmit > 0) {
-      logPrecisionEvent(`T-${timeUntilSubmit}ms`, `✓ Token ready! ${timeUntilSubmit}ms until submit...`);
-    } else {
-      // We're already past T-0! Submit immediately
-      console.log('');
-      console.log('⚠️  WARNING: Token generation took longer than expected!');
-      console.log(`⚠️  We are ${Math.abs(timeUntilSubmit)}ms LATE - submitting immediately...`);
-      console.log('');
-    }
-
-    // Get cookies for HTTP POST (reusable for all courts)
+    // Get cookies NOW (needed for submission)
     const cookies = await context.cookies();
     const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
 
@@ -773,6 +764,16 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
     // ===================================================================
     // Wait until T-0 (or proceed immediately if already past T-0)
     await waitUntilSynced(T);
+
+    // Log AFTER waiting (or immediately if late) to not waste time
+    if (isLate) {
+      console.log('');
+      console.log('⚠️  WARNING: Token generation took longer than expected!');
+      console.log(`⚠️  We were ${Math.abs(timeUntilSubmit)}ms LATE - submitted immediately`);
+      console.log('');
+    } else {
+      logPrecisionEvent(`T-${timeUntilSubmit}ms`, `✓ Token ready! ${timeUntilSubmit}ms until submit...`);
+    }
 
     let finalResult = null;
 
