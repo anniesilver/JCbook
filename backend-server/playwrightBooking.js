@@ -554,7 +554,7 @@ async function executeBooking(params) {
  * - T-20s: Check court availability + filter courts
  * - T-15s: Navigate to first court's form + extract fields
  * - T-5s:  Measure network latency (3x HEAD requests)
- * - T-(RTT+200ms): Generate fresh reCAPTCHA token
+ * - T-RTT: Generate fresh reCAPTCHA token (no buffer for testing)
  * - T-0:   Submit form (arrives at server exactly on time)
  * - If fail: Immediately try next available court
  *
@@ -727,12 +727,12 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
     const networkRTT = await measureNetworkLatency();
 
     // Calculate optimal token generation time
-    // RTT + 200ms safety buffer ensures token is fresh but submission arrives on time
-    const tokenGenerationDelay = networkRTT + 200;
-    logPrecisionEvent('T-3s', `Network RTT: ${networkRTT}ms, will generate token at T-${tokenGenerationDelay}ms`);
+    // Using T-RTT (no safety buffer for high latency testing)
+    const tokenGenerationDelay = networkRTT;
+    logPrecisionEvent('T-3s', `Network RTT: ${networkRTT}ms, will generate token at T-${tokenGenerationDelay}ms (no buffer)`);
 
     // ===================================================================
-    // T-(RTT+200ms): GENERATE FRESH RECAPTCHA TOKEN
+    // T-RTT: GENERATE FRESH RECAPTCHA TOKEN (no safety buffer for testing)
     // ===================================================================
     await waitUntilSynced(T - tokenGenerationDelay);
     logPrecisionEvent(`T-${tokenGenerationDelay}ms`, 'Generating fresh reCAPTCHA token...');

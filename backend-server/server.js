@@ -355,14 +355,14 @@ async function checkForNewBookings() {
 
   try {
     const rtt = await measureNetworkLatency();
-    const tokenDelay = rtt + 200;
+    const tokenDelay = rtt; // No safety buffer for testing
 
     console.log('');
     console.log('========================================');
-    console.log('[Server] Network Configuration');
+    console.log('[Server] Network Configuration (TEST MODE)');
     console.log('========================================');
     console.log(`[Server] Baseline RTT:           ${rtt}ms`);
-    console.log(`[Server] Token generation delay: T-${tokenDelay}ms (RTT + 200ms safety buffer)`);
+    console.log(`[Server] Token generation delay: T-${tokenDelay}ms (RTT, no buffer - TEST MODE)`);
     console.log(`[Server] This means in PRECISION mode:`);
     console.log(`[Server]   - Token will be generated ${tokenDelay}ms before T-0`);
     console.log(`[Server]   - Submit will happen at T-0 (8:00:00.000 AM)`);
@@ -380,7 +380,7 @@ async function checkForNewBookings() {
     }
   } catch (error) {
     console.error('[Server] Failed to measure network latency:', error.message);
-    console.log('[Server] Will use 150ms default RTT + 200ms buffer = T-350ms for token generation');
+    console.log('[Server] Will use 150ms default RTT for token generation (TEST MODE: no buffer)');
     console.log('');
   }
 
