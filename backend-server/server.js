@@ -209,16 +209,20 @@ async function checkAndExecuteBookings() {
           console.log(`[Server] Token submission time: ${result.timeGap}ms`);
           console.log('');
         } else {
-          const errorMessage = booking.accept_any_court
+          // Use the error message from the booking result, or fall back to default
+          const errorMessage = result.error || (booking.accept_any_court
             ? `No courts available. Attempted: Courts ${courtsToTry.join(', ')}`
-            : `Court ${booking.preferred_court} is not available`;
+            : `Court ${booking.preferred_court} is not available`);
+
+          // Check if this is a non-retryable failure (courts definitively unavailable)
+          const newRetryCount = result.nonRetryable ? 99 : booking.retry_count + 1;
 
           await supabase
             .from('bookings')
             .update({
               auto_book_status: 'failed',
               status_message: errorMessage,
-              retry_count: booking.retry_count + 1,
+              retry_count: newRetryCount,
               updated_at: new Date().toISOString()
             })
             .eq('id', booking.id);
@@ -226,7 +230,11 @@ async function checkAndExecuteBookings() {
           console.log('');
           console.log(`[Server] ❌ Booking ${booking.id} FAILED`);
           console.log(`[Server] Error: ${errorMessage}`);
-          console.log(`[Server] Retry count: ${booking.retry_count + 1}/3`);
+          if (result.nonRetryable) {
+            console.log(`[Server] Non-retryable failure (courts unavailable) - will not retry`);
+          } else {
+            console.log(`[Server] Retry count: ${newRetryCount}/3`);
+          }
           console.log('');
         }
       } catch (error) {
