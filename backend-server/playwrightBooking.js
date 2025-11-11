@@ -31,7 +31,7 @@ function getBookingConfig(bookingType, durationHours) {
   if (bookingType === 'doubles' || durationHours === 1.5) {
     return {
       duration: '90',      // 1.5 hours = 90 minutes
-      rtype: '1',          // Doubles rtype
+      rtype: '13',         // Same rtype for both singles and doubles
       inviteFor: 'Doubles',
       playerCount: 4       // Doubles requires 4 players
     };
@@ -39,7 +39,7 @@ function getBookingConfig(bookingType, durationHours) {
   // Default: singles
   return {
     duration: '60',        // 1 hour = 60 minutes
-    rtype: '13',           // Singles rtype
+    rtype: '13',           // Same rtype for both singles and doubles
     inviteFor: 'Singles',
     playerCount: 2         // Singles requires 2 players
   };
@@ -298,9 +298,9 @@ async function tryBookCourt(page, context, court, date, time, guestName, booking
     formData.append('date', date);
     formData.append('time', time);
     formData.append('sportSel', '1');
-    formData.append('duration', config.duration);  // Total duration (from config)
-    formData.append('rtype', config.rtype);  // Singles: 13, Doubles: 1
-    formData.append('invite_for', config.inviteFor);  // Singles or Doubles
+    formData.append('duration', config.duration);  // Total duration (60 or 90 minutes)
+    formData.append('rtype', config.rtype);  // Always 13 for both singles and doubles
+    formData.append('invite_for', config.inviteFor);  // 'Singles' or 'Doubles'
 
     // Player 1 (always the registered user)
     formData.append('players[1][user_id]', userId);
@@ -860,9 +860,9 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
       formData.append('date', date);
       formData.append('time', time);
       formData.append('sportSel', '1');
-      formData.append('duration', config.duration);  // Total duration (from config)
-      formData.append('rtype', config.rtype);  // Singles: 13, Doubles: 1
-      formData.append('invite_for', config.inviteFor);  // Singles or Doubles
+      formData.append('duration', config.duration);  // Total duration (60 or 90 minutes)
+      formData.append('rtype', config.rtype);  // Always 13 for both singles and doubles
+      formData.append('invite_for', config.inviteFor);  // 'Singles' or 'Doubles'
 
       // Player 1 (always the registered user)
       formData.append('players[1][user_id]', userId);
