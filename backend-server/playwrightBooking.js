@@ -554,10 +554,12 @@ async function executeBooking(params) {
  * - T-20s:      Check court availability + filter courts
  * - T-15s:      Navigate to first court's form + extract fields
  * - T-5s:       Measure network latency (3x HEAD requests)
- * - T-RTT:      Generate fresh reCAPTCHA token (no buffer for testing)
+ *
+ * FOR EACH COURT (with fresh token):
+ * - T-RTT:      Generate FRESH reCAPTCHA token for this court
  * - T-(RTT/2):  Submit form (compensating for one-way network latency)
  * - T-0:        Request ARRIVES at GameTime server (exactly on time!)
- * - If fail:    Immediately try next available court
+ * - If fail:    Generate fresh token for next court and try immediately
  *
  * @param {Object} params - Same as executeBooking params
  * @param {number} targetTimestamp - Exact timestamp to submit (ms since epoch)
@@ -732,65 +734,73 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
     const tokenGenerationDelay = networkRTT;
     logPrecisionEvent('T-3s', `Network RTT: ${networkRTT}ms, will generate token at T-${tokenGenerationDelay}ms (no buffer)`);
 
-    // ===================================================================
-    // T-RTT: GENERATE FRESH RECAPTCHA TOKEN (no safety buffer for testing)
-    // ===================================================================
-    await waitUntilSynced(T - tokenGenerationDelay);
-    logPrecisionEvent(`T-${tokenGenerationDelay}ms`, 'Generating fresh reCAPTCHA token...');
-
-    const freshToken = await page.evaluate(async () => {
-      const siteKey = '6LeW9NsUAAAAAC9KRF2JvdLtGMSds7hrBdxuOnLH';
-      const token = await window.grecaptcha.execute(siteKey, {action: 'homepage'});
-      return token;
-    }).catch(err => {
-      console.error('[Precision] Failed to execute grecaptcha:', err.message);
-      return null;
-    });
-
-    if (!freshToken) {
-      throw new Error('Failed to generate reCAPTCHA token');
-    }
-
-    // Check how much time we have left until T-0
-    const nowAfterToken = getCurrentSyncedTime();
-    const timeUntilSubmit = T - nowAfterToken;
-    const isLate = timeUntilSubmit <= 0;
-
-    // Get cookies NOW (needed for submission)
+    // Get cookies NOW (needed for all court submissions)
     const cookies = await context.cookies();
     const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
 
-    // ===================================================================
-    // T-(RTT/2): SUBMIT FORM (compensate for one-way network latency)
-    // ===================================================================
-    // Submit early so request ARRIVES at server at exactly T-0
+    // Calculate submission timing for first court
     const oneWayLatency = Math.floor(networkRTT / 2);
     const submitTime = T - oneWayLatency;
 
-    console.log('');
-    console.log(`[Precision] Network compensation: Submit at T-${oneWayLatency}ms to arrive at T-0`);
-    console.log(`[Precision] One-way latency: ~${oneWayLatency}ms`);
-    console.log('');
-
-    await waitUntilSynced(submitTime);
-
-    // Log AFTER waiting (or immediately if late) to not waste time
-    if (isLate) {
-      console.log('');
-      console.log('⚠️  WARNING: Token generation took longer than expected!');
-      console.log(`⚠️  We were ${Math.abs(timeUntilSubmit)}ms LATE - submitted immediately`);
-      console.log('');
-    } else {
-      logPrecisionEvent(`T-${timeUntilSubmit}ms`, `✓ Token ready! ${timeUntilSubmit}ms until submit...`);
-    }
-
     let finalResult = null;
 
-    for (const court of courtsToAttempt) {
+    // ===================================================================
+    // TRY EACH COURT WITH FRESH TOKEN
+    // ===================================================================
+    for (let courtIndex = 0; courtIndex < courtsToAttempt.length; courtIndex++) {
+      const court = courtsToAttempt[courtIndex];
       const gameTimeCourtId = COURT_ID_MAPPING[court];
       const bookingFormUrl = `https://jct.gametime.net/scheduling/index/book/sport/1/court/${gameTimeCourtId}/date/${formattedDate}/time/${time}`;
 
-      logPrecisionEvent(`T-${oneWayLatency}ms`, `🚀 SUBMITTING for Court ${court}! (Expected arrival: T-0)`);
+      const isFirstCourt = courtIndex === 0;
+
+      // ===================================================================
+      // GENERATE FRESH RECAPTCHA TOKEN FOR THIS COURT
+      // ===================================================================
+      if (isFirstCourt) {
+        // First court: Wait for optimal timing
+        await waitUntilSynced(T - tokenGenerationDelay);
+        logPrecisionEvent(`T-${tokenGenerationDelay}ms`, `Generating fresh reCAPTCHA token for Court ${court}...`);
+      } else {
+        // Retry courts: Generate immediately (no waiting)
+        console.log(`[Precision] Generating fresh reCAPTCHA token for Court ${court}...`);
+      }
+
+      const freshToken = await page.evaluate(async () => {
+        const siteKey = '6LeW9NsUAAAAAC9KRF2JvdLtGMSds7hrBdxuOnLH';
+        const token = await window.grecaptcha.execute(siteKey, {action: 'homepage'});
+        return token;
+      }).catch(err => {
+        console.error(`[Precision] Failed to generate grecaptcha for Court ${court}:`, err.message);
+        return null;
+      });
+
+      if (!freshToken) {
+        console.log(`[Precision] ❌ Failed to generate token for Court ${court}, skipping...`);
+        continue;
+      }
+
+      // ===================================================================
+      // SUBMIT THIS COURT
+      // ===================================================================
+      if (isFirstCourt) {
+        // First court: Try to hit optimal timing
+        const nowAfterToken = getCurrentSyncedTime();
+        const timeUntilSubmit = submitTime - nowAfterToken;
+
+        if (timeUntilSubmit > 0) {
+          logPrecisionEvent(`T-${T - nowAfterToken}ms`, `✓ Token ready! Waiting ${timeUntilSubmit}ms for optimal submit time...`);
+          console.log(`[Precision] Network compensation: Submit at T-${oneWayLatency}ms to arrive at T-0`);
+          await waitUntilSynced(submitTime);
+        } else {
+          console.log('');
+          console.log('⚠️  WARNING: Token generation took longer than expected!');
+          console.log(`⚠️  We are ${Math.abs(timeUntilSubmit)}ms past optimal submit time - submitting immediately`);
+          console.log('');
+        }
+      }
+
+      logPrecisionEvent(isFirstCourt ? `T-${oneWayLatency}ms` : 'NOW', `🚀 SUBMITTING for Court ${court}!${isFirstCourt ? ' (Expected arrival: T-0)' : ''}`);
       const submitStart = getCurrentSyncedTime();
 
       // Build form data
