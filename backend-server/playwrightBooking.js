@@ -20,6 +20,32 @@ const COURT_ID_MAPPING = {
 };
 
 /**
+ * Get booking configuration based on booking type and duration
+ * Determines rtype, duration, invite_for text, and player count
+ *
+ * @param {string} bookingType - 'singles' or 'doubles'
+ * @param {number} durationHours - 1.0 for singles, 1.5 for doubles
+ * @returns {Object} Booking configuration
+ */
+function getBookingConfig(bookingType, durationHours) {
+  if (bookingType === 'doubles' || durationHours === 1.5) {
+    return {
+      duration: '90',      // 1.5 hours = 90 minutes
+      rtype: '1',          // Doubles rtype
+      inviteFor: 'Doubles',
+      playerCount: 4       // Doubles requires 4 players
+    };
+  }
+  // Default: singles
+  return {
+    duration: '60',        // 1 hour = 60 minutes
+    rtype: '13',           // Singles rtype
+    inviteFor: 'Singles',
+    playerCount: 2         // Singles requires 2 players
+  };
+}
+
+/**
  * Check which courts are available at the requested date/time
  * Navigates to the Tennis schedule page and parses the availability table
  *
@@ -185,9 +211,13 @@ async function getAvailableCourts(page, date, time) {
 /**
  * Try booking a single court with existing browser session
  */
-async function tryBookCourt(page, context, court, date, time, guestName) {
+async function tryBookCourt(page, context, court, date, time, guestName, bookingType, durationHours) {
   try {
     console.log(`[PlaywrightBooking] === Attempting Court ${court} ===`);
+
+    // Get booking configuration based on type
+    const config = getBookingConfig(bookingType, durationHours);
+    console.log(`[PlaywrightBooking] Config: ${config.duration} min, rtype ${config.rtype}, ${config.playerCount} players`);
 
     // Map court number to GameTime court ID
     const gameTimeCourtId = COURT_ID_MAPPING[court];
@@ -262,21 +292,28 @@ async function tryBookCourt(page, context, court, date, time, guestName) {
     formData.append('rt_key', '');
     formData.append('temp', temp);
     formData.append('upd', 'true');
-    formData.append('duration', '30');
+    formData.append('duration', '30');  // Slot size (always 30)
     formData.append('g-recaptcha-response', freshToken);
     formData.append('court', gameTimeCourtId);
     formData.append('date', date);
     formData.append('time', time);
     formData.append('sportSel', '1');
-    formData.append('duration', '60');
-    formData.append('rtype', '13');
-    formData.append('invite_for', 'Singles');
+    formData.append('duration', config.duration);  // Total duration (from config)
+    formData.append('rtype', config.rtype);  // Singles: 13, Doubles: 1
+    formData.append('invite_for', config.inviteFor);  // Singles or Doubles
+
+    // Player 1 (always the registered user)
     formData.append('players[1][user_id]', userId);
     formData.append('players[1][name]', userName);
-    formData.append('players[2][user_id]', '');
-    formData.append('players[2][name]', guestName);
-    formData.append('players[2][guest]', 'on');
-    formData.append('players[2][guestof]', '1');
+
+    // Additional players (guests)
+    for (let i = 2; i <= config.playerCount; i++) {
+      formData.append(`players[${i}][user_id]`, '');
+      formData.append(`players[${i}][name]`, guestName);
+      formData.append(`players[${i}][guest]`, 'on');
+      formData.append(`players[${i}][guestof]`, '1');
+    }
+
     formData.append('payee_hide', userId);
     formData.append('bookingWaiverPolicy', 'true');
 
@@ -361,14 +398,17 @@ async function tryBookCourt(page, context, court, date, time, guestName) {
  * @param {string} params.date - Booking date in YYYY-MM-DD format
  * @param {string} params.time - Time in minutes from midnight (e.g., "540" = 9:00 AM)
  * @param {string} [params.guestName] - Guest player name (default: "G")
+ * @param {string} [params.bookingType] - 'singles' or 'doubles' (default: 'singles')
+ * @param {number} [params.durationHours] - 1.0 for singles, 1.5 for doubles (default: 1.0)
  *
  * @returns {Promise<Object>} Result object
  */
 async function executeBooking(params) {
-  const { username, password, courts, date, time, guestName = 'G' } = params;
+  const { username, password, courts, date, time, guestName = 'G', bookingType = 'singles', durationHours = 1.0 } = params;
 
   console.log(`[PlaywrightBooking] ========================================`);
   console.log(`[PlaywrightBooking] Starting booking execution`);
+  console.log(`[PlaywrightBooking] Booking type: ${bookingType} (${durationHours} hours)`);
   console.log(`[PlaywrightBooking] Courts to try: ${courts.join(', ')}`);
   console.log(`[PlaywrightBooking] Date: ${date}, Time: ${time}`);
   console.log(`[PlaywrightBooking] Username: ${username}`);
@@ -495,7 +535,7 @@ async function executeBooking(params) {
     let finalResult = null;
 
     for (const court of courtsToAttempt) {
-      const result = await tryBookCourt(page, context, court, date, time, guestName);
+      const result = await tryBookCourt(page, context, court, date, time, guestName, bookingType, durationHours);
 
       if (result.success) {
         console.log('');
@@ -566,7 +606,7 @@ async function executeBooking(params) {
  * @returns {Promise<Object>} Result object
  */
 async function executeBookingPrecisionTimed(params, targetTimestamp) {
-  const { username, password, courts, date, time, guestName = 'G' } = params;
+  const { username, password, courts, date, time, guestName = 'G', bookingType = 'singles', durationHours = 1.0 } = params;
   const { getCurrentSyncedTime, measureNetworkLatency } = require('./timeSync');
   const { formatInGameTimeZone } = require('./bookingWindowCalculator');
 
@@ -574,6 +614,7 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
   console.log('========================================');
   console.log('[PRECISION MODE] Starting Timeline Execution');
   console.log('========================================');
+  console.log(`[Precision] Booking type: ${bookingType} (${durationHours} hours)`);
   console.log(`[Precision] Target submission: ${new Date(targetTimestamp).toISOString()}`);
   console.log(`[Precision] GameTime timezone: ${formatInGameTimeZone(targetTimestamp)}`);
   console.log(`[Precision] Local timezone:   ${new Date(targetTimestamp).toLocaleString()}`);
@@ -803,6 +844,9 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
       logPrecisionEvent(isFirstCourt ? `T-${oneWayLatency}ms` : 'NOW', `🚀 SUBMITTING for Court ${court}!${isFirstCourt ? ' (Expected arrival: T-0)' : ''}`);
       const submitStart = getCurrentSyncedTime();
 
+      // Get booking configuration
+      const config = getBookingConfig(bookingType, durationHours);
+
       // Build form data
       const formData = new URLSearchParams();
       formData.append('edit', '');
@@ -810,21 +854,28 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
       formData.append('rt_key', '');
       formData.append('temp', temp);
       formData.append('upd', 'true');
-      formData.append('duration', '30');
+      formData.append('duration', '30');  // Slot size (always 30)
       formData.append('g-recaptcha-response', freshToken);
       formData.append('court', gameTimeCourtId);
       formData.append('date', date);
       formData.append('time', time);
       formData.append('sportSel', '1');
-      formData.append('duration', '60');
-      formData.append('rtype', '13');
-      formData.append('invite_for', 'Singles');
+      formData.append('duration', config.duration);  // Total duration (from config)
+      formData.append('rtype', config.rtype);  // Singles: 13, Doubles: 1
+      formData.append('invite_for', config.inviteFor);  // Singles or Doubles
+
+      // Player 1 (always the registered user)
       formData.append('players[1][user_id]', userId);
       formData.append('players[1][name]', userName);
-      formData.append('players[2][user_id]', '');
-      formData.append('players[2][name]', guestName);
-      formData.append('players[2][guest]', 'on');
-      formData.append('players[2][guestof]', '1');
+
+      // Additional players (guests)
+      for (let i = 2; i <= config.playerCount; i++) {
+        formData.append(`players[${i}][user_id]`, '');
+        formData.append(`players[${i}][name]`, guestName);
+        formData.append(`players[${i}][guest]`, 'on');
+        formData.append(`players[${i}][guestof]`, '1');
+      }
+
       formData.append('payee_hide', userId);
       formData.append('bookingWaiverPolicy', 'true');
 

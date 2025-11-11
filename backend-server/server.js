@@ -184,6 +184,7 @@ async function executeBookingWrapper(booking) {
     }
 
     console.log(`[Server] Courts to attempt: ${courtsToTry.join(', ')}`);
+    console.log(`[Server] Booking type: ${booking.booking_type} (${booking.duration_hours} hours)`);
 
     // Execute immediate booking
     const result = await executeBooking({
@@ -192,7 +193,9 @@ async function executeBookingWrapper(booking) {
       courts: courtsToTry,
       date: booking.booking_date,
       time: timeInMinutes,
-      guestName: 'G'
+      guestName: 'G',
+      bookingType: booking.booking_type,
+      durationHours: booking.duration_hours
     });
 
     // Update database
@@ -238,6 +241,7 @@ async function executePrecisionBookingWrapper(booking, targetTimestamp) {
     }
 
     console.log(`[Server] Courts to attempt: ${courtsToTry.join(', ')}`);
+    console.log(`[Server] Booking type: ${booking.booking_type} (${booking.duration_hours} hours)`);
 
     // Execute precision-timed booking
     const result = await executeBookingPrecisionTimed({
@@ -246,7 +250,9 @@ async function executePrecisionBookingWrapper(booking, targetTimestamp) {
       courts: courtsToTry,
       date: booking.booking_date,
       time: timeInMinutes,
-      guestName: 'G'
+      guestName: 'G',
+      bookingType: booking.booking_type,
+      durationHours: booking.duration_hours
     }, targetTimestamp);
 
     // Update database
