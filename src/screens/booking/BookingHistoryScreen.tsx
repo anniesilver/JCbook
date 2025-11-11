@@ -48,10 +48,15 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
       filtered = filtered.filter((b) => b.auto_book_status === filter);
     }
 
-    // Sort bookings
+    // Sort bookings (timezone-safe date comparison)
     return filtered.sort((a, b) => {
       if (sortBy === 'date') {
-        return new Date(b.booking_date).getTime() - new Date(a.booking_date).getTime();
+        // Parse dates as local dates to avoid timezone issues
+        const [yearA, monthA, dayA] = a.booking_date.split('-').map(Number);
+        const [yearB, monthB, dayB] = b.booking_date.split('-').map(Number);
+        const dateA = new Date(yearA, monthA - 1, dayA);
+        const dateB = new Date(yearB, monthB - 1, dayB);
+        return dateB.getTime() - dateA.getTime();
       } else {
         // Sort by status priority
         const statusPriority: Record<string, number> = {
