@@ -251,28 +251,38 @@ async function tryBookCourt(page, context, court, date, time, guestName, booking
     await new Promise(r => setTimeout(r, 1000));
 
     // ===================================================================
-    // CRITICAL: Change duration dropdown to update temp hold
+    // CRITICAL: Select booking type radio button and change duration
     // ===================================================================
-    console.log(`[PlaywrightBooking] Setting duration to ${config.duration} minutes...`);
+    const bookingTypeName = bookingType === 'doubles' ? 'Doubles' : 'Singles';
+    console.log(`[PlaywrightBooking] Selecting ${bookingTypeName} and setting duration to ${config.duration} minutes...`);
 
     try {
-      // Find duration dropdown and select correct value
+      // Step 1: Click the Singles/Doubles radio button first
+      // This enables the duration dropdown
+      const rtypeSelector = `input[type="radio"][name="rtype"][value="${config.rtype}"]`;
+      await page.waitForSelector(rtypeSelector, { timeout: 5000 });
+      await page.click(rtypeSelector);
+
+      console.log(`[PlaywrightBooking] ✓ Selected ${bookingTypeName} radio button (rtype=${config.rtype})`);
+
+      // Wait for form to update after radio selection
+      await new Promise(r => setTimeout(r, 500));
+
+      // Step 2: Now select duration from dropdown
       const durationSelector = 'select[name="duration"]';
       await page.waitForSelector(durationSelector, { timeout: 5000 });
-
-      // Select the duration value (60 or 90)
       await page.selectOption(durationSelector, config.duration);
 
-      console.log(`[PlaywrightBooking] Duration set to ${config.duration} minutes`);
+      console.log(`[PlaywrightBooking] ✓ Duration set to ${config.duration} minutes`);
 
-      // Wait for JavaScript to update the temp hold on server
+      // Step 3: Wait for JavaScript to update the temp hold on server
       // This is critical - the temp ID is tied to the duration!
       await new Promise(r => setTimeout(r, 2000));
 
-      console.log(`[PlaywrightBooking] Temp hold updated for ${config.duration} minutes`);
+      console.log(`[PlaywrightBooking] ✓ Temp hold updated for ${bookingTypeName} ${config.duration} minutes`);
     } catch (error) {
-      console.log(`[PlaywrightBooking] ⚠️  Could not set duration dropdown: ${error.message}`);
-      console.log(`[PlaywrightBooking] Proceeding anyway (form may already have correct duration)`);
+      console.log(`[PlaywrightBooking] ⚠️  Could not set booking type/duration: ${error.message}`);
+      console.log(`[PlaywrightBooking] Proceeding anyway (form may already have correct settings)`);
     }
 
     // Generate fresh reCAPTCHA token
@@ -767,28 +777,38 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
       await page.waitForSelector('input[name="players[1][user_id]"]', { timeout: 10000, state: 'attached' });
 
       // ===================================================================
-      // CRITICAL: Change duration dropdown to update temp hold
+      // CRITICAL: Select booking type radio button and change duration
       // ===================================================================
-      logPrecisionEvent('T-14s', `Setting duration to ${config.duration} minutes...`);
+      const bookingTypeName = bookingType === 'doubles' ? 'Doubles' : 'Singles';
+      logPrecisionEvent('T-14s', `Selecting ${bookingTypeName} and setting duration to ${config.duration} minutes...`);
 
       try {
-        // Find duration dropdown and select correct value
+        // Step 1: Click the Singles/Doubles radio button first
+        // This enables the duration dropdown
+        const rtypeSelector = `input[type="radio"][name="rtype"][value="${config.rtype}"]`;
+        await page.waitForSelector(rtypeSelector, { timeout: 5000 });
+        await page.click(rtypeSelector);
+
+        logPrecisionEvent('T-14s', `✓ Selected ${bookingTypeName} radio button (rtype=${config.rtype})`);
+
+        // Wait for form to update after radio selection
+        await new Promise(r => setTimeout(r, 500));
+
+        // Step 2: Now select duration from dropdown
         const durationSelector = 'select[name="duration"]';
         await page.waitForSelector(durationSelector, { timeout: 5000 });
-
-        // Select the duration value (60 or 90)
         await page.selectOption(durationSelector, config.duration);
 
-        logPrecisionEvent('T-13s', `Duration set to ${config.duration} minutes`);
+        logPrecisionEvent('T-13s', `✓ Duration set to ${config.duration} minutes`);
 
-        // Wait for JavaScript to update the temp hold on server
+        // Step 3: Wait for JavaScript to update the temp hold on server
         // This is critical - the temp ID is tied to the duration!
         await new Promise(r => setTimeout(r, 2000));
 
-        logPrecisionEvent('T-13s', `Temp hold updated for ${config.duration} minutes`);
+        logPrecisionEvent('T-13s', `✓ Temp hold updated for ${bookingTypeName} ${config.duration} minutes`);
       } catch (error) {
-        console.log(`[Precision] ⚠️  Could not set duration dropdown: ${error.message}`);
-        console.log(`[Precision] Proceeding anyway (form may already have correct duration)`);
+        console.log(`[Precision] ⚠️  Could not set booking type/duration: ${error.message}`);
+        console.log(`[Precision] Proceeding anyway (form may already have correct settings)`);
       }
 
       // Extract form fields (same for all courts)
