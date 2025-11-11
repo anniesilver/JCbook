@@ -1,7 +1,7 @@
 /**
  * Booking Window Calculator
  *
- * GameTime opens booking slots 6 days before the target date at 8:00 AM
+ * GameTime opens booking slots 6 days before the target date at 9:00 AM
  * All calculations are done in GameTime server's timezone (EST/EDT)
  */
 
@@ -16,7 +16,7 @@ const GAMETIME_TIMEZONE = 'America/New_York';
  *
  * Example:
  * - Target: Nov 21, 2025
- * - Opens: Nov 15, 2025 at 8:00 AM EST
+ * - Opens: Nov 15, 2025 at 9:00 AM EST
  */
 function calculateBookingOpenTime(targetDate) {
   /**
@@ -57,13 +57,13 @@ function calculateBookingOpenTime(targetDate) {
   // Get EST offset for the target date (handles DST automatically)
   const offsetHours = getESTOffsetHours(year, month, day);
 
-  // Create UTC timestamp for "target date at 8:00 AM EST"
-  // If offset is 5 (EST = UTC-5), then 8:00 AM EST = 13:00 UTC
-  const targetAt8amEST_UTC = Date.UTC(year, month - 1, day, 8 + offsetHours, 0, 0, 0);
+  // Create UTC timestamp for "target date at 9:00 AM EST"
+  // If offset is 5 (EST = UTC-5), then 9:00 AM EST = 14:00 UTC
+  const targetAt9amEST_UTC = Date.UTC(year, month - 1, day, 9 + offsetHours, 0, 0, 0);
 
   // Subtract 6 days (in milliseconds)
   const sixDaysInMs = 6 * 24 * 60 * 60 * 1000;
-  const openTime_UTC = targetAt8amEST_UTC - sixDaysInMs;
+  const openTime_UTC = targetAt9amEST_UTC - sixDaysInMs;
 
   // Return as Date object (will display correctly in any timezone)
   return new Date(openTime_UTC);
@@ -87,7 +87,7 @@ function getBookingStrategy(targetDate) {
       reason: 'Booking slot is already open (within 6-day window)'
     };
   } else {
-    // Booking slot not open yet - schedule for 8:00 AM on opening day
+    // Booking slot not open yet - schedule for 9:00 AM on opening day
     const msUntilOpen = bookingOpenTime.getTime() - now.getTime();
     const hoursUntilOpen = Math.floor(msUntilOpen / 3600000);
     const minutesUntilOpen = Math.floor((msUntilOpen % 3600000) / 60000);
