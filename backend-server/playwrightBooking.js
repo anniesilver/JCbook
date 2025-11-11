@@ -250,6 +250,31 @@ async function tryBookCourt(page, context, court, date, time, guestName, booking
 
     await new Promise(r => setTimeout(r, 1000));
 
+    // ===================================================================
+    // CRITICAL: Change duration dropdown to update temp hold
+    // ===================================================================
+    console.log(`[PlaywrightBooking] Setting duration to ${config.duration} minutes...`);
+
+    try {
+      // Find duration dropdown and select correct value
+      const durationSelector = 'select[name="duration"]';
+      await page.waitForSelector(durationSelector, { timeout: 5000 });
+
+      // Select the duration value (60 or 90)
+      await page.selectOption(durationSelector, config.duration);
+
+      console.log(`[PlaywrightBooking] Duration set to ${config.duration} minutes`);
+
+      // Wait for JavaScript to update the temp hold on server
+      // This is critical - the temp ID is tied to the duration!
+      await new Promise(r => setTimeout(r, 2000));
+
+      console.log(`[PlaywrightBooking] Temp hold updated for ${config.duration} minutes`);
+    } catch (error) {
+      console.log(`[PlaywrightBooking] ⚠️  Could not set duration dropdown: ${error.message}`);
+      console.log(`[PlaywrightBooking] Proceeding anyway (form may already have correct duration)`);
+    }
+
     // Generate fresh reCAPTCHA token
     console.log(`[PlaywrightBooking] Generating fresh reCAPTCHA token for Court ${court}...`);
     const freshToken = await page.evaluate(async () => {
@@ -740,6 +765,31 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
       await page.goto(bookingFormUrl, { waitUntil: 'networkidle', timeout: 30000 });
       await page.waitForSelector('input[name="temp"]', { timeout: 10000, state: 'attached' });
       await page.waitForSelector('input[name="players[1][user_id]"]', { timeout: 10000, state: 'attached' });
+
+      // ===================================================================
+      // CRITICAL: Change duration dropdown to update temp hold
+      // ===================================================================
+      logPrecisionEvent('T-14s', `Setting duration to ${config.duration} minutes...`);
+
+      try {
+        // Find duration dropdown and select correct value
+        const durationSelector = 'select[name="duration"]';
+        await page.waitForSelector(durationSelector, { timeout: 5000 });
+
+        // Select the duration value (60 or 90)
+        await page.selectOption(durationSelector, config.duration);
+
+        logPrecisionEvent('T-13s', `Duration set to ${config.duration} minutes`);
+
+        // Wait for JavaScript to update the temp hold on server
+        // This is critical - the temp ID is tied to the duration!
+        await new Promise(r => setTimeout(r, 2000));
+
+        logPrecisionEvent('T-13s', `Temp hold updated for ${config.duration} minutes`);
+      } catch (error) {
+        console.log(`[Precision] ⚠️  Could not set duration dropdown: ${error.message}`);
+        console.log(`[Precision] Proceeding anyway (form may already have correct duration)`);
+      }
 
       // Extract form fields (same for all courts)
       temp = await page.$eval('input[name="temp"]', el => el.value).catch(() => '');
