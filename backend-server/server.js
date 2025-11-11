@@ -122,13 +122,31 @@ async function scheduleBooking(booking) {
       }, finalSyncTime);
     }
 
-    // Schedule the precision execution
+    // Check if we have enough time for precision mode (need at least 30s for prep)
+    if (delayMs < 30000) {
+      console.log('');
+      console.log('⚠️  WARNING: Not enough time for PRECISION mode!');
+      console.log(`⚠️  Only ${Math.floor(delayMs/1000)}s until target, need at least 30s for prep work`);
+      console.log('⚠️  Switching to IMMEDIATE execution mode instead...');
+      console.log('');
+      await executeBookingWrapper(booking);
+      scheduledBookings.delete(booking.id);
+      return;
+    }
+
+    // Calculate when to START precision execution (T-30s)
+    const executionStartTime = strategy.executeAt.getTime() - 30000;
+    const executionDelay = executionStartTime - now;
+
+    // Schedule precision execution to START at T-30s
     setTimeout(async () => {
-      console.log('[Scheduler] Time reached! Starting precision execution...');
+      console.log('[Scheduler] Precision execution starting now (T-30s)...');
+      console.log('');
       await executePrecisionBookingWrapper(booking, strategy.executeAt.getTime());
-    }, delayMs);
+    }, executionDelay);
 
     console.log(`[Scheduler] Booking ${booking.id} scheduled successfully`);
+    console.log(`[Scheduler] Precision execution will start in ${Math.floor(executionDelay/1000)}s (at T-30s)`);
     console.log('');
   }
 }
