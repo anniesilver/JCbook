@@ -546,17 +546,18 @@ async function executeBooking(params) {
 }
 
 /**
- * Execute booking with precision timing for 8:00 AM GameTime submission
+ * Execute booking with precision timing for 9:00 AM GameTime submission
  * Uses timeline-based execution with server time sync and measured network latency
  *
- * NEW OPTIMIZED Timeline (T = target 8:00:00.000 AM):
- * - T-30s: Login + verify session
- * - T-20s: Check court availability + filter courts
- * - T-15s: Navigate to first court's form + extract fields
- * - T-5s:  Measure network latency (3x HEAD requests)
- * - T-RTT: Generate fresh reCAPTCHA token (no buffer for testing)
- * - T-0:   Submit form (arrives at server exactly on time)
- * - If fail: Immediately try next available court
+ * NEW OPTIMIZED Timeline (T = target 9:00:00.000 AM):
+ * - T-30s:      Login + verify session
+ * - T-20s:      Check court availability + filter courts
+ * - T-15s:      Navigate to first court's form + extract fields
+ * - T-5s:       Measure network latency (3x HEAD requests)
+ * - T-RTT:      Generate fresh reCAPTCHA token (no buffer for testing)
+ * - T-(RTT/2):  Submit form (compensating for one-way network latency)
+ * - T-0:        Request ARRIVES at GameTime server (exactly on time!)
+ * - If fail:    Immediately try next available court
  *
  * @param {Object} params - Same as executeBooking params
  * @param {number} targetTimestamp - Exact timestamp to submit (ms since epoch)
@@ -760,10 +761,18 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
     const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
 
     // ===================================================================
-    // T-0: SUBMIT FORM (try all courts sequentially if needed)
+    // T-(RTT/2): SUBMIT FORM (compensate for one-way network latency)
     // ===================================================================
-    // Wait until T-0 (or proceed immediately if already past T-0)
-    await waitUntilSynced(T);
+    // Submit early so request ARRIVES at server at exactly T-0
+    const oneWayLatency = Math.floor(networkRTT / 2);
+    const submitTime = T - oneWayLatency;
+
+    console.log('');
+    console.log(`[Precision] Network compensation: Submit at T-${oneWayLatency}ms to arrive at T-0`);
+    console.log(`[Precision] One-way latency: ~${oneWayLatency}ms`);
+    console.log('');
+
+    await waitUntilSynced(submitTime);
 
     // Log AFTER waiting (or immediately if late) to not waste time
     if (isLate) {
@@ -781,7 +790,7 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
       const gameTimeCourtId = COURT_ID_MAPPING[court];
       const bookingFormUrl = `https://jct.gametime.net/scheduling/index/book/sport/1/court/${gameTimeCourtId}/date/${formattedDate}/time/${time}`;
 
-      logPrecisionEvent('T-0', `🚀 SUBMITTING for Court ${court}!`);
+      logPrecisionEvent(`T-${oneWayLatency}ms`, `🚀 SUBMITTING for Court ${court}! (Expected arrival: T-0)`);
       const submitStart = getCurrentSyncedTime();
 
       // Build form data
@@ -845,19 +854,26 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
         }
       }
 
+      // Calculate expected vs actual arrival
+      const expectedArrivalTime = submitStart + oneWayLatency;
+      const arrivalDiff = expectedArrivalTime - T;
+
       console.log('');
       console.log('========================================');
       console.log(`[PRECISION] Submission Result - Court ${court}`);
       console.log('========================================');
-      console.log(`[Precision] HTTP Status:     ${submitResponse.status}`);
-      console.log(`[Precision] Submitted at:    ${new Date(submitStart).toISOString()}`);
-      console.log(`[Precision] GameTime TZ:     ${formatInGameTimeZone(submitStart)}`);
-      console.log(`[Precision] Target was:      ${new Date(T).toISOString()}`);
-      console.log(`[Precision] Timing accuracy: ${submitStart - T}ms`);
-      console.log(`[Precision] HTTP took:       ${submitEnd - submitStart}ms`);
-      console.log(`[Precision] Result:          ${success ? '✅ SUCCESS' : '❌ FAILED'}`);
+      console.log(`[Precision] HTTP Status:        ${submitResponse.status}`);
+      console.log(`[Precision] Submitted at:       ${new Date(submitStart).toISOString()}`);
+      console.log(`[Precision] GameTime TZ:        ${formatInGameTimeZone(submitStart)}`);
+      console.log(`[Precision] Submit timing:      T-${T - submitStart}ms (${T - submitStart}ms early)`);
+      console.log(`[Precision] One-way latency:    ${oneWayLatency}ms`);
+      console.log(`[Precision] Expected arrival:   ${new Date(expectedArrivalTime).toISOString()}`);
+      console.log(`[Precision] Expected arrival:   ${formatInGameTimeZone(expectedArrivalTime)}`);
+      console.log(`[Precision] Arrival vs target:  ${arrivalDiff >= 0 ? '+' : ''}${arrivalDiff}ms (${arrivalDiff >= 0 ? 'late' : 'early'})`);
+      console.log(`[Precision] HTTP round-trip:    ${submitEnd - submitStart}ms`);
+      console.log(`[Precision] Result:             ${success ? '✅ SUCCESS' : '❌ FAILED'}`);
       if (success) {
-        console.log(`[Precision] Booking ID:      ${bookingId}`);
+        console.log(`[Precision] Booking ID:         ${bookingId}`);
       }
       console.log('========================================');
       console.log('');
