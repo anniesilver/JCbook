@@ -31,15 +31,15 @@ function getBookingConfig(bookingType, durationHours) {
   if (bookingType === 'doubles' || durationHours === 1.5) {
     return {
       duration: '90',      // 1.5 hours = 90 minutes
-      rtype: '13',         // Same rtype for both singles and doubles
-      inviteFor: 'Doubles',
+      rtype: '1',          // Doubles uses rtype=1 (confirmed from manual test)
+      inviteFor: 'Singles', // Keep as Singles (observed from working payload)
       playerCount: 4       // Doubles requires 4 players
     };
   }
   // Default: singles
   return {
     duration: '60',        // 1 hour = 60 minutes
-    rtype: '13',           // Same rtype for both singles and doubles
+    rtype: '13',           // Singles uses rtype=13
     inviteFor: 'Singles',
     playerCount: 2         // Singles requires 2 players
   };
@@ -299,8 +299,8 @@ async function tryBookCourt(page, context, court, date, time, guestName, booking
     formData.append('time', time);
     formData.append('sportSel', '1');
     formData.append('duration', config.duration);  // Total duration (60 or 90 minutes)
-    formData.append('rtype', config.rtype);  // Always 13 for both singles and doubles
-    formData.append('invite_for', config.inviteFor);  // 'Singles' or 'Doubles'
+    formData.append('rtype', config.rtype);  // Singles: 13, Doubles: 1
+    formData.append('invite_for', config.inviteFor);  // Always 'Singles' (even for doubles)
 
     // Player 1 (always the registered user)
     formData.append('players[1][user_id]', userId);
@@ -311,7 +311,7 @@ async function tryBookCourt(page, context, court, date, time, guestName, booking
       formData.append(`players[${i}][user_id]`, '');
       formData.append(`players[${i}][name]`, guestName);
       formData.append(`players[${i}][guest]`, 'on');
-      formData.append(`players[${i}][guestof]`, '1');
+      formData.append(`players[${i}][guestof]`, '1');  // All guests have guestof=1
     }
 
     formData.append('payee_hide', userId);
@@ -861,8 +861,8 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
       formData.append('time', time);
       formData.append('sportSel', '1');
       formData.append('duration', config.duration);  // Total duration (60 or 90 minutes)
-      formData.append('rtype', config.rtype);  // Always 13 for both singles and doubles
-      formData.append('invite_for', config.inviteFor);  // 'Singles' or 'Doubles'
+      formData.append('rtype', config.rtype);  // Singles: 13, Doubles: 1
+      formData.append('invite_for', config.inviteFor);  // Always 'Singles' (even for doubles)
 
       // Player 1 (always the registered user)
       formData.append('players[1][user_id]', userId);
@@ -873,7 +873,7 @@ async function executeBookingPrecisionTimed(params, targetTimestamp) {
         formData.append(`players[${i}][user_id]`, '');
         formData.append(`players[${i}][name]`, guestName);
         formData.append(`players[${i}][guest]`, 'on');
-        formData.append(`players[${i}][guestof]`, '1');
+        formData.append(`players[${i}][guestof]`, '1');  // All guests have guestof=1
       }
 
       formData.append('payee_hide', userId);
