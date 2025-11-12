@@ -120,7 +120,14 @@ export const BookingCard: React.FC<BookingCardProps> = ({
         {booking.auto_book_status === 'success' && booking.actual_court && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Confirmed Court:</Text>
-            <Text style={styles.detailValue}>Court {booking.actual_court}</Text>
+            <Text
+              style={[
+                styles.detailValue,
+                booking.actual_court !== booking.preferred_court && styles.differentCourtValue
+              ]}
+            >
+              Court {booking.actual_court}
+            </Text>
           </View>
         )}
         {booking.auto_book_status === 'success' && booking.gametime_confirmation_id && (
@@ -206,6 +213,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#333',
     fontWeight: '600',
+  },
+  differentCourtValue: {
+    color: '#006400', // Dark Green
+    fontWeight: '700',
   },
   errorRow: {
     flexDirection: 'row',
