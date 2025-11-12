@@ -29,7 +29,7 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
   onClose,
   showCloseButton = false,
 }) => {
-  const { bookings, isLoading, loadUserBookings, retryBooking, cancelBooking, deleteBooking } =
+  const { bookings, isLoading, loadUserBookings, cancelBooking, deleteBooking } =
     useBookingStore();
   const [filter, setFilter] = useState<FilterType>('all');
   const [sortBy, setSortBy] = useState<'date' | 'status'>('date');
@@ -72,19 +72,6 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
   };
 
   const filteredBookings = getFilteredBookings();
-
-  const handleRetry = async (bookingId: string) => {
-    try {
-      await retryBooking(bookingId);
-      Alert.alert('Success', 'Booking retry initiated');
-      await loadUserBookings();
-    } catch (error) {
-      Alert.alert(
-        'Error',
-        error instanceof Error ? error.message : 'Failed to retry booking'
-      );
-    }
-  };
 
   const handleCancel = async (bookingId: string) => {
     try {
@@ -236,7 +223,6 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
           renderItem={({ item }) => (
             <BookingCard
               booking={item}
-              onRetry={handleRetry}
               onCancel={handleCancel}
               onDelete={handleDelete}
               onViewDetails={() => {

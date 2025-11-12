@@ -39,11 +39,6 @@ interface BookingStore extends BookingState {
   ) => Promise<void>;
 
   /**
-   * Retry a failed booking
-   */
-  retryBooking: (bookingId: string) => Promise<void>;
-
-  /**
    * Cancel a booking
    */
   cancelBooking: (bookingId: string) => Promise<void>;
@@ -209,41 +204,6 @@ export const useBookingStore = create<BookingStore>()(
       } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Failed to update booking';
-        set((state) => {
-          state.error = message;
-        });
-      }
-    },
-
-    retryBooking: async (bookingId: string) => {
-      try {
-        // Reset booking status to 'pending' and clear error
-        const { booking, error } = await bookingService.updateBookingStatus(
-          bookingId,
-          'pending'
-        );
-
-        if (error) {
-          set((state) => {
-            state.error = error.message;
-          });
-          return;
-        }
-
-        if (booking) {
-          set((state) => {
-            const index = state.bookings.findIndex((b) => b.id === bookingId);
-            if (index !== -1) {
-              // Use Object.assign to mutate the existing object (works with immer)
-              Object.assign(state.bookings[index], booking);
-              state.bookings[index].auto_book_status = 'pending';
-              state.bookings[index].error_message = null;
-            }
-          });
-        }
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to retry booking';
         set((state) => {
           state.error = message;
         });
