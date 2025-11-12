@@ -144,15 +144,16 @@ function formatDate(date: Date): string {
 }
 
 /**
- * Check if a booking date is in the future (for validation) - timezone-safe
+ * Check if a booking date is in the future (for validation)
+ * Uses LOCAL timezone because user picks dates in their local calendar
  */
 export function isDateInFuture(bookingDate: string): boolean {
   const [year, month, day] = bookingDate.split("-").map(Number);
-  const bookingDateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  const bookingDateObj = new Date(year, month - 1, day, 0, 0, 0, 0);
   const today = new Date();
-  const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0));
+  today.setHours(0, 0, 0, 0);
 
-  return bookingDateObj >= todayUTC;
+  return bookingDateObj >= today;
 }
 
 /**
@@ -195,13 +196,14 @@ export async function createBookingWithSchedule(
       };
     }
 
-    // Validate booking is not too far in advance (90-day max window) - use UTC to avoid timezone issues
+    // Validate booking is not too far in advance (90-day max window)
+    // Use LOCAL timezone for days calculation (user thinks in their local calendar)
     const [year, month, day] = bookingInput.booking_date.split("-").map(Number);
-    const bookingDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const bookingDate = new Date(year, month - 1, day, 0, 0, 0, 0);
     const today = new Date();
-    const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0));
-    const maxDate = new Date(todayUTC);
-    maxDate.setUTCDate(maxDate.getUTCDate() + 90);
+    today.setHours(0, 0, 0, 0);
+    const maxDate = new Date(today);
+    maxDate.setDate(maxDate.getDate() + 90);
 
     if (bookingDate > maxDate) {
       return {
@@ -210,9 +212,10 @@ export async function createBookingWithSchedule(
       };
     }
 
-    // Calculate days until booking (using UTC to avoid timezone issues)
+    // Calculate days until booking (using LOCAL calendar dates)
+    // User thinks: "I want to book 6 days from now" (in their timezone)
     const daysUntilBooking = Math.floor(
-      (bookingDate.getTime() - todayUTC.getTime()) / (1000 * 60 * 60 * 24)
+      (bookingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
     );
 
     // Determine execution time based on booking window
@@ -287,7 +290,7 @@ export function getBookingStatistics(booking: Booking): {
 } {
   const now = new Date();
   const [year, month, day] = booking.booking_date.split("-").map(Number);
-  const bookingDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  const bookingDate = new Date(year, month - 1, day, 0, 0, 0, 0);
   const daysUntilBooking = Math.ceil(
     (bookingDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
   );
