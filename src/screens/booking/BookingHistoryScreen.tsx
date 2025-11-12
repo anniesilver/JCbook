@@ -18,7 +18,7 @@ import { useBookingStore } from '../../store/bookingStore';
 import { BookingCard } from '../../components/booking/BookingCard';
 import { Booking } from '../../types/index';
 
-type FilterType = 'all' | 'pending' | 'success' | 'failed' | 'in_progress';
+type FilterType = 'all' | 'pending' | 'confirmed' | 'success' | 'failed' | 'in_progress';
 
 interface BookingHistoryScreenProps {
   onClose?: () => void;
@@ -32,7 +32,6 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
   const { bookings, isLoading, loadUserBookings, cancelBooking, deleteBooking } =
     useBookingStore();
   const [filter, setFilter] = useState<FilterType>('all');
-  const [sortBy, setSortBy] = useState<'date' | 'status'>('date');
 
   useEffect(() => {
     loadUserBookings();
@@ -45,29 +44,21 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
     let filtered = [...bookings];
 
     if (filter !== 'all') {
-      filtered = filtered.filter((b) => b.auto_book_status === filter);
+      if (filter === 'confirmed') {
+        filtered = filtered.filter((b) => b.status === 'confirmed');
+      } else {
+        filtered = filtered.filter((b) => b.auto_book_status === filter);
+      }
     }
 
-    // Sort bookings (timezone-safe date comparison)
+    // Sort bookings by date (timezone-safe date comparison)
     return filtered.sort((a, b) => {
-      if (sortBy === 'date') {
-        // Parse dates as local dates to avoid timezone issues
-        const [yearA, monthA, dayA] = a.booking_date.split('-').map(Number);
-        const [yearB, monthB, dayB] = b.booking_date.split('-').map(Number);
-        const dateA = new Date(yearA, monthA - 1, dayA);
-        const dateB = new Date(yearB, monthB - 1, dayB);
-        return dateB.getTime() - dateA.getTime();
-      } else {
-        // Sort by status priority
-        const statusPriority: Record<string, number> = {
-          in_progress: 1,
-          pending: 2,
-          failed: 3,
-          success: 4,
-        };
-        return (statusPriority[a.auto_book_status] || 5) -
-          (statusPriority[b.auto_book_status] || 5);
-      }
+      // Parse dates as local dates to avoid timezone issues
+      const [yearA, monthA, dayA] = a.booking_date.split('-').map(Number);
+      const [yearB, monthB, dayB] = b.booking_date.split('-').map(Number);
+      const dateA = new Date(yearA, monthA - 1, dayA);
+      const dateB = new Date(yearB, monthB - 1, dayB);
+      return dateB.getTime() - dateA.getTime();
     });
   };
 
@@ -103,6 +94,7 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
       total: bookings.length,
       pending: bookings.filter((b) => b.auto_book_status === 'pending').length,
       in_progress: bookings.filter((b) => b.auto_book_status === 'in_progress').length,
+      confirmed: bookings.filter((b) => b.status === 'confirmed').length,
       success: bookings.filter((b) => b.auto_book_status === 'success').length,
       failed: bookings.filter((b) => b.auto_book_status === 'failed').length,
     };
@@ -128,7 +120,7 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
       </View>
 
 
-      {/* Filter and Sort Options */}
+      {/* Filter Options */}
       <View style={styles.controlsContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterTabs}>
           {(['all', 'pending', 'confirmed', 'failed'] as FilterType[]).map((f) => {
@@ -164,41 +156,6 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({
             );
           })}
         </ScrollView>
-
-        <View style={styles.sortContainer}>
-          <TouchableOpacity
-            style={[
-              styles.sortButton,
-              sortBy === 'date' && styles.sortButtonActive,
-            ]}
-            onPress={() => setSortBy('date')}
-          >
-            <Text
-              style={[
-                styles.sortButtonText,
-                sortBy === 'date' && styles.sortButtonTextActive,
-              ]}
-            >
-              Date
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.sortButton,
-              sortBy === 'status' && styles.sortButtonActive,
-            ]}
-            onPress={() => setSortBy('status')}
-          >
-            <Text
-              style={[
-                styles.sortButtonText,
-                sortBy === 'status' && styles.sortButtonTextActive,
-              ]}
-            >
-              Status
-            </Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       {/* Bookings List */}
@@ -288,49 +245,25 @@ const styles = StyleSheet.create({
   },
   filterTabs: {
     paddingHorizontal: 16,
-    marginBottom: 12,
+    flexGrow: 0,
   },
   filterTab: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: '#F0F0F0',
     marginRight: 8,
+    minWidth: 80,
   },
   filterTabActive: {
     backgroundColor: '#0066CC',
   },
   filterTabText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666',
     fontWeight: '500',
   },
   filterTabTextActive: {
-    color: '#FFF',
-  },
-  sortContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  sortButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: '#F0F0F0',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  sortButtonActive: {
-    backgroundColor: '#0066CC',
-    borderColor: '#0066CC',
-  },
-  sortButtonText: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '500',
-  },
-  sortButtonTextActive: {
     color: '#FFF',
   },
   listContainer: {
