@@ -13,7 +13,6 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/hooks/useAuth';
-import { useBookingExecutor } from '@/hooks/useBookingExecutor';
 import { initializeAuthListener } from '@/services/authListener';
 
 export const unstable_settings = {
@@ -31,9 +30,6 @@ export default function RootLayout() {
   const router = useRouter();
   const routeCheckRef = useRef(false);
   const navigationReadyRef = useRef(false);
-
-  // Start booking executor service when authenticated
-  useBookingExecutor();
 
   /**
    * Initialize authentication on app startup
