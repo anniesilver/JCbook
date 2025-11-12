@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { StatusBadge } from './StatusBadge';
 import { Booking } from '../../types/index';
+import { getUserFriendlyErrorMessage } from '../../utils/errorMessages';
 
 interface BookingCardProps {
   booking: Booking;
@@ -136,10 +137,12 @@ export const BookingCard: React.FC<BookingCardProps> = ({
             <Text style={styles.detailValue}>{booking.gametime_confirmation_id}</Text>
           </View>
         )}
-        {booking.auto_book_status === 'failed' && booking.error_message && (
+        {booking.auto_book_status === 'failed' && (
           <View style={styles.errorRow}>
             <Text style={styles.errorLabel}>Error:</Text>
-            <Text style={styles.errorValue}>{booking.error_message}</Text>
+            <Text style={styles.errorValue}>
+              {getUserFriendlyErrorMessage(booking.error_message)}
+            </Text>
           </View>
         )}
       </View>
