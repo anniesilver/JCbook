@@ -201,7 +201,7 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
    */
   useEffect(() => {
     if (submitSuccess) {
-      Alert.alert('Success', 'Booking created successfully! The system will automatically submit your booking at 8:00 AM on the scheduled date.', [
+      Alert.alert('Success', 'Booking task created successfully', [
         {
           text: 'OK',
           onPress: () => {
