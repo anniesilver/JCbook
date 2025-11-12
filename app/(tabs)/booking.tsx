@@ -28,7 +28,7 @@ export default function BookingTabScreen() {
       {hasPendingBookings && (
         <View style={styles.infoBanner}>
           <Text style={styles.infoText}>
-            ℹ️ Bookings will be executed automatically at 8:00 AM on the scheduled date
+            ℹ️ Bookings will be executed automatically on the scheduled date
           </Text>
         </View>
       )}
