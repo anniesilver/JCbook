@@ -13,7 +13,6 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { Booking, BookingState, BookingInput } from '../types/index';
 import * as bookingService from '../services/bookingService';
-import * as bookingScheduler from '../services/bookingScheduler';
 import { useAuthStore } from './authStore';
 
 /**
@@ -141,14 +140,16 @@ export const useBookingStore = create<BookingStore>()(
       });
 
       try {
-        const { booking, error } = await bookingScheduler.createBookingWithSchedule(
+        // Just save to database - PC backend server handles all scheduling
+        const { booking, error } = await bookingService.createBooking(
           userId,
-          bookingInput
+          bookingInput,
+          new Date().toISOString() // Placeholder - PC server will handle actual scheduling
         );
 
         if (error) {
           set((state) => {
-            state.error = error;
+            state.error = error.message;
             state.isLoading = false;
           });
           return null;
