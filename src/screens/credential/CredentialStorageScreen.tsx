@@ -246,11 +246,31 @@ export function CredentialStorageScreen({
                 <Text style={styles.credentialValue}>{"••••••••"}</Text>
               </View>
               <Text style={styles.securityNote}>Your password is encrypted and stored securely.</Text>
+
+              {/* Action buttons for saved credentials */}
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                  style={[styles.button, styles.editButton, isLoading && styles.buttonDisabled]}
+                  onPress={() => setIsEditing(true)}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.editButtonText}>Edit</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.deleteButton, isLoading && styles.buttonDisabled]}
+                onPress={handleDeleteCredentials}
+                disabled={isLoading}
+              >
+                <Text style={styles.deleteButtonText}>Delete Credentials</Text>
+              </TouchableOpacity>
             </View>
           )}
 
-          {/* Form */}
-          <View style={styles.form}>
+          {/* Form - only show when editing or no credentials exist */}
+          {(isEditing || !credentials) && (
+            <View style={styles.form}>
             <Text style={styles.sectionTitle}>{isEditing ? "Update Credentials" : credentials ? "Update Credentials" : "Add Credentials"}</Text>
 
             {/* Username input */}
@@ -343,28 +363,9 @@ export function CredentialStorageScreen({
                   <Text style={styles.secondaryButtonText}>Cancel</Text>
                 </TouchableOpacity>
               )}
-
-              {credentials && !isEditing && (
-                <TouchableOpacity
-                  style={[styles.button, styles.editButton, isLoading && styles.buttonDisabled]}
-                  onPress={() => setIsEditing(true)}
-                  disabled={isLoading}
-                >
-                  <Text style={styles.editButtonText}>Edit</Text>
-                </TouchableOpacity>
-              )}
             </View>
-
-            {credentials && !isEditing && (
-              <TouchableOpacity
-                style={[styles.deleteButton, isLoading && styles.buttonDisabled]}
-                onPress={handleDeleteCredentials}
-                disabled={isLoading}
-              >
-                <Text style={styles.deleteButtonText}>Delete Credentials</Text>
-              </TouchableOpacity>
-            )}
           </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
