@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   differentCourtValue: {
-    color: '#006400', // Dark Green
+    color: '#10B981', // Bright Emerald Green
     fontWeight: '700',
   },
   errorRow: {
