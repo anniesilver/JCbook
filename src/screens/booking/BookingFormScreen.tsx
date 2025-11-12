@@ -162,8 +162,8 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
 
   // Form state
   const [formData, setFormData] = useState<BookingInput>({
-    preferred_court: 0,
-    accept_any_court: false,
+    preferred_court: 1,
+    accept_any_court: true,
     booking_date: getTodayDateString(),
     booking_time: '10:00',
     booking_type: 'doubles',
@@ -208,8 +208,8 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
             setSubmitSuccess(false);
             // Reset form
             setFormData({
-              preferred_court: 0,
-              accept_any_court: false,
+              preferred_court: 1,
+              accept_any_court: true,
               booking_date: getTodayDateString(),
               booking_time: '10:00',
               booking_type: 'doubles',
