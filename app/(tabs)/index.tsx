@@ -12,19 +12,23 @@ export default function HomeScreen() {
   const { logout, user, isLoading } = useAuth();
   const { bookings } = useBookingStore();
 
-  // Calculate pending bookings and next execution time
+  // Calculate pending bookings
   const pendingBookings = bookings.filter(
     b => b.status === 'pending' || b.auto_book_status === 'pending'
   );
 
+  // Get next booking by date (not execution time - server handles scheduling)
   const nextBooking = pendingBookings
-    .sort((a, b) =>
-      new Date(a.scheduled_execute_time || 0).getTime() -
-      new Date(b.scheduled_execute_time || 0).getTime()
-    )[0];
+    .sort((a, b) => {
+      const [yearA, monthA, dayA] = a.booking_date.split('-').map(Number);
+      const [yearB, monthB, dayB] = b.booking_date.split('-').map(Number);
+      const dateA = new Date(yearA, monthA - 1, dayA);
+      const dateB = new Date(yearB, monthB - 1, dayB);
+      return dateA.getTime() - dateB.getTime();
+    })[0];
 
-  const nextExecutionTime = nextBooking
-    ? new Date(nextBooking.scheduled_execute_time!).toLocaleString()
+  const nextBookingDate = nextBooking
+    ? `${nextBooking.booking_date} at ${nextBooking.booking_time}`
     : 'None';
 
   const handleLogout = async () => {
@@ -75,9 +79,9 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.statusRow}>
-            <ThemedText style={styles.statusLabel}>Next execution:</ThemedText>
+            <ThemedText style={styles.statusLabel}>Next booking:</ThemedText>
             <ThemedText style={styles.statusValue} numberOfLines={2}>
-              {nextExecutionTime}
+              {nextBookingDate}
             </ThemedText>
           </View>
 

@@ -117,9 +117,15 @@ export const BookingCard: React.FC<BookingCardProps> = ({
           <Text style={styles.detailLabel}>Duration:</Text>
           <Text style={styles.detailValue}>{booking.duration_hours} hour{booking.duration_hours > 1 ? 's' : ''}</Text>
         </View>
+        {booking.auto_book_status === 'success' && booking.actual_court && (
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Confirmed Court:</Text>
+            <Text style={styles.detailValue}>Court {booking.actual_court}</Text>
+          </View>
+        )}
         {booking.auto_book_status === 'success' && booking.gametime_confirmation_id && (
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Confirmation:</Text>
+            <Text style={styles.detailLabel}>Confirmation ID:</Text>
             <Text style={styles.detailValue}>{booking.gametime_confirmation_id}</Text>
           </View>
         )}

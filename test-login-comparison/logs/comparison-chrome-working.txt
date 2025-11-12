@@ -1,0 +1,35 @@
+Chrome Working Payload (from DevTools)
+
+edit=&is_register=&rt_key=&temp=7021&upd=true&duration=30&g-recaptcha-response=CHROME_TOKEN&court=55&date=2025-11-16&time=1260&sportSel=1&duration=90&rtype=1&invite_for=Singles&players%5B1%5D%5Buser_id%5D=2511&players%5B1%5D%5Bname%5D=Yang%2C+Annie&players%5B2%5D%5Buser_id%5D=&players%5B2%5D%5Bname%5D=g&players%5B2%5D%5Bguest%5D=on&players%5B2%5D%5Bguestof%5D=1&players%5B3%5D%5Buser_id%5D=&players%5B3%5D%5Bname%5D=g&players%5B3%5D%5Bguest%5D=on&players%5B3%5D%5Bguestof%5D=1&players%5B4%5D%5Buser_id%5D=&players%5B4%5D%5Bname%5D=g&players%5B4%5D%5Bguest%5D=on&players%5B4%5D%5Bguestof%5D=1&payee_hide=2511&bookingWaiverPolicy=true
+
+=== FORMATTED ===
+edit=
+is_register=
+rt_key=
+temp=7021
+upd=true
+duration=30
+g-recaptcha-response=CHROME_TOKEN
+court=55
+date=2025-11-16
+time=1260
+sportSel=1
+duration=90
+rtype=1
+invite_for=Singles
+players[1][user_id]=2511
+players[1][name]=Yang,+Annie
+players[2][user_id]=
+players[2][name]=g
+players[2][guest]=on
+players[2][guestof]=1
+players[3][user_id]=
+players[3][name]=g
+players[3][guest]=on
+players[3][guestof]=1
+players[4][user_id]=
+players[4][name]=g
+players[4][guest]=on
+players[4][guestof]=1
+payee_hide=2511
+bookingWaiverPolicy=true

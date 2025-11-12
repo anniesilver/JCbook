@@ -105,8 +105,9 @@ function validateBooking(formData: BookingInput): string | null {
     return 'Invalid time format. Please use HH:mm';
   }
 
-  // Check if date is in the future
-  const selectedDate = new Date(formData.booking_date);
+  // Check if date is in the future (timezone-safe comparison)
+  const [year, month, day] = formData.booking_date.split('-').map(Number);
+  const selectedDate = new Date(year, month - 1, day);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   if (selectedDate < today) {
@@ -117,18 +118,23 @@ function validateBooking(formData: BookingInput): string | null {
 }
 
 /**
- * Get today's date in YYYY-MM-DD format
+ * Get today's date in YYYY-MM-DD format (timezone-safe)
  */
 function getTodayDateString(): string {
   const today = new Date();
-  return today.toISOString().split('T')[0];
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**
- * Format date for display (e.g., "Nov 7, 2025")
+ * Format date for display (e.g., "Nov 7, 2025") - timezone-safe
  */
 function formatDateDisplay(dateString: string): string {
-  const date = new Date(dateString);
+  // Parse as local date to avoid timezone issues
+  const [year, month, day] = dateString.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
@@ -156,8 +162,8 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
 
   // Form state
   const [formData, setFormData] = useState<BookingInput>({
-    preferred_court: 0,
-    accept_any_court: false,
+    preferred_court: 1,
+    accept_any_court: true,
     booking_date: getTodayDateString(),
     booking_time: '10:00',
     booking_type: 'doubles',
@@ -195,15 +201,15 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
    */
   useEffect(() => {
     if (submitSuccess) {
-      Alert.alert('Success', 'Booking created successfully! The system will automatically submit your booking at 8:00 AM on the scheduled date.', [
+      Alert.alert('Success', 'Booking task created successfully', [
         {
           text: 'OK',
           onPress: () => {
             setSubmitSuccess(false);
             // Reset form
             setFormData({
-              preferred_court: 0,
-              accept_any_court: false,
+              preferred_court: 1,
+              accept_any_court: true,
               booking_date: getTodayDateString(),
               booking_time: '10:00',
               booking_type: 'doubles',
@@ -268,12 +274,16 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
   };
 
   /**
-   * Handle date selection (native picker)
+   * Handle date selection (native picker) - timezone-safe
    */
   const handleDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
     if (selectedDate) {
-      const dateString = selectedDate.toISOString().split('T')[0];
+      // Use local date components to avoid timezone conversion issues
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${day}`;
       setFormData({ ...formData, booking_date: dateString });
     }
   };
@@ -386,7 +396,11 @@ export default function BookingFormScreen({ onBookingSuccess }: BookingFormScree
         {showDatePicker && (
           <View style={styles.datePickerContainer}>
             <DateTimePicker
-              value={new Date(formData.booking_date)}
+              value={(() => {
+                // Parse date string as local date to avoid timezone issues
+                const [year, month, day] = formData.booking_date.split('-').map(Number);
+                return new Date(year, month - 1, day);
+              })()}
               mode="date"
               display="inline"
               onChange={handleDateChange}

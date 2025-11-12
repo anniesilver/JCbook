@@ -13,7 +13,6 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { Booking, BookingState, BookingInput } from '../types/index';
 import * as bookingService from '../services/bookingService';
-import * as bookingScheduler from '../services/bookingScheduler';
 import { useAuthStore } from './authStore';
 
 /**
@@ -38,11 +37,6 @@ interface BookingStore extends BookingState {
     bookingId: string,
     status: 'pending' | 'confirmed' | 'cancelled'
   ) => Promise<void>;
-
-  /**
-   * Retry a failed booking
-   */
-  retryBooking: (bookingId: string) => Promise<void>;
 
   /**
    * Cancel a booking
@@ -141,14 +135,16 @@ export const useBookingStore = create<BookingStore>()(
       });
 
       try {
-        const { booking, error } = await bookingScheduler.createBookingWithSchedule(
+        // Just save to database - PC backend server handles all scheduling
+        const { booking, error } = await bookingService.createBooking(
           userId,
-          bookingInput
+          bookingInput,
+          new Date().toISOString() // Placeholder - PC server will handle actual scheduling
         );
 
         if (error) {
           set((state) => {
-            state.error = error;
+            state.error = error.message;
             state.isLoading = false;
           });
           return null;
@@ -208,41 +204,6 @@ export const useBookingStore = create<BookingStore>()(
       } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Failed to update booking';
-        set((state) => {
-          state.error = message;
-        });
-      }
-    },
-
-    retryBooking: async (bookingId: string) => {
-      try {
-        // Reset booking status to 'pending' and clear error
-        const { booking, error } = await bookingService.updateBookingStatus(
-          bookingId,
-          'pending'
-        );
-
-        if (error) {
-          set((state) => {
-            state.error = error.message;
-          });
-          return;
-        }
-
-        if (booking) {
-          set((state) => {
-            const index = state.bookings.findIndex((b) => b.id === bookingId);
-            if (index !== -1) {
-              // Use Object.assign to mutate the existing object (works with immer)
-              Object.assign(state.bookings[index], booking);
-              state.bookings[index].auto_book_status = 'pending';
-              state.bookings[index].status_message = null;
-            }
-          });
-        }
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to retry booking';
         set((state) => {
           state.error = message;
         });

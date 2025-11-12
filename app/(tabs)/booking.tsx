@@ -22,22 +22,14 @@ export default function BookingTabScreen() {
     (b) => b.status === 'pending' || b.auto_book_status === 'pending'
   );
 
-  // Find the next execution time
-  const nextExecution = bookings
-    .filter((b) => b.status === 'pending' || b.auto_book_status === 'pending')
-    .sort((a, b) => new Date(a.scheduled_execute_time).getTime() - new Date(b.scheduled_execute_time).getTime())[0];
-
-  const nextExecutionTime = nextExecution
-    ? new Date(nextExecution.scheduled_execute_time).toLocaleString()
-    : '';
-
   return (
     <SafeAreaView style={styles.container}>
-      {/* Warning Banner for Pending Bookings */}
+      {/* Info Banner for Pending Bookings */}
       {hasPendingBookings && (
-        <View style={styles.warningBanner}>
-          <Text style={styles.warningTitle}>PC Server will execute bookings automatically</Text>
-          <Text style={styles.warningText}>Next: {nextExecutionTime}</Text>
+        <View style={styles.infoBanner}>
+          <Text style={styles.infoText}>
+            ℹ️ Bookings will be executed automatically on booking server at the earliest posible booking time
+          </Text>
         </View>
       )}
 
@@ -105,22 +97,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F5',
   },
-  warningBanner: {
-    backgroundColor: '#FFF3CD',
+  infoBanner: {
+    backgroundColor: '#E3F2FD',
     borderBottomWidth: 2,
-    borderBottomColor: '#FFC107',
+    borderBottomColor: '#2196F3',
     padding: 12,
   },
-  warningTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#856404',
-    marginBottom: 4,
-  },
-  warningText: {
-    fontSize: 12,
-    color: '#856404',
-    marginTop: 2,
+  infoText: {
+    fontSize: 13,
+    color: '#1565C0',
+    textAlign: 'center',
   },
   tabNavigation: {
     flexDirection: 'row',
