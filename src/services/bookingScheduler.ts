@@ -29,13 +29,13 @@ import * as bookingService from "./bookingService";
  * @returns ISO timestamp for when to execute the booking
  */
 export function calculateScheduledExecuteTime(bookingDate: string): string {
-  // Parse the booking date
+  // Parse the booking date as UTC to avoid timezone issues
   const [year, month, day] = bookingDate.split("-").map(Number);
-  const targetDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+  const targetDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
 
   // Calculate 7 days before
   const executeDate = new Date(targetDate);
-  executeDate.setDate(executeDate.getDate() - 7);
+  executeDate.setUTCDate(executeDate.getUTCDate() - 7);
 
   // Set time to 8:00 AM UTC
   executeDate.setUTCHours(8, 0, 0, 0);
@@ -90,7 +90,7 @@ export function generateRecurringBookingDates(
 
   const dates: string[] = [];
   const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
-  let currentDate = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+  let currentDate = new Date(Date.UTC(startYear, startMonth - 1, startDay, 0, 0, 0, 0));
 
   // Determine recurrence interval in days
   let intervalDays = 7; // Default to weekly
@@ -100,11 +100,11 @@ export function generateRecurringBookingDates(
     intervalDays = 30; // Approximate; will adjust for actual months
   }
 
-  // Parse end date if provided
+  // Parse end date if provided (use UTC to avoid timezone issues)
   let endDateTime: Date | null = null;
   if (endDate) {
     const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
-    endDateTime = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+    endDateTime = new Date(Date.UTC(endYear, endMonth - 1, endDay, 23, 59, 59, 999));
   }
 
   // Add start date
@@ -113,11 +113,11 @@ export function generateRecurringBookingDates(
   // Generate recurring dates
   while (dates.length < maxInstances) {
     if (recurrence === 'monthly') {
-      // For monthly, add one month instead of 30 days
-      currentDate.setMonth(currentDate.getMonth() + 1);
+      // For monthly, add one month instead of 30 days (use UTC methods)
+      currentDate.setUTCMonth(currentDate.getUTCMonth() + 1);
     } else {
-      // For weekly and bi-weekly, add the interval
-      currentDate.setDate(currentDate.getDate() + intervalDays);
+      // For weekly and bi-weekly, add the interval (use UTC methods)
+      currentDate.setUTCDate(currentDate.getUTCDate() + intervalDays);
     }
 
     const dateString = formatDate(currentDate);
@@ -134,25 +134,25 @@ export function generateRecurringBookingDates(
 }
 
 /**
- * Format a Date object to YYYY-MM-DD string
+ * Format a Date object to YYYY-MM-DD string (timezone-safe using UTC)
  */
 function formatDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
 /**
- * Check if a booking date is in the future (for validation)
+ * Check if a booking date is in the future (for validation) - timezone-safe
  */
 export function isDateInFuture(bookingDate: string): boolean {
   const [year, month, day] = bookingDate.split("-").map(Number);
-  const bookingDateObj = new Date(year, month - 1, day, 0, 0, 0, 0);
+  const bookingDateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0));
 
-  return bookingDateObj > today;
+  return bookingDateObj >= todayUTC;
 }
 
 /**
@@ -195,13 +195,13 @@ export async function createBookingWithSchedule(
       };
     }
 
-    // Validate booking is not too far in advance (90-day max window)
+    // Validate booking is not too far in advance (90-day max window) - use UTC to avoid timezone issues
     const [year, month, day] = bookingInput.booking_date.split("-").map(Number);
-    const bookingDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+    const bookingDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const maxDate = new Date(today);
-    maxDate.setDate(maxDate.getDate() + 90);
+    const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0));
+    const maxDate = new Date(todayUTC);
+    maxDate.setUTCDate(maxDate.getUTCDate() + 90);
 
     if (bookingDate > maxDate) {
       return {
@@ -210,9 +210,9 @@ export async function createBookingWithSchedule(
       };
     }
 
-    // Calculate days until booking
+    // Calculate days until booking (using UTC to avoid timezone issues)
     const daysUntilBooking = Math.floor(
-      (bookingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+      (bookingDate.getTime() - todayUTC.getTime()) / (1000 * 60 * 60 * 24)
     );
 
     // Determine execution time based on booking window
@@ -287,7 +287,7 @@ export function getBookingStatistics(booking: Booking): {
 } {
   const now = new Date();
   const [year, month, day] = booking.booking_date.split("-").map(Number);
-  const bookingDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+  const bookingDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
   const daysUntilBooking = Math.ceil(
     (bookingDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
   );
