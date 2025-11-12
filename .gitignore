@@ -45,3 +45,9 @@ app-example
 # backend server
 backend-server/.env
 backend-server/node_modules/
+
+# EAS Build
+*.ipa
+*.apk
+*.aab
+build/

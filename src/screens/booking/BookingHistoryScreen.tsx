@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: '#F0F0F0',
-    marginRight: 8,
+    marginRight: 4,
     minWidth: 80,
   },
   filterTabActive: {
