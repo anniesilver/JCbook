@@ -20,7 +20,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { executeBooking, executeBookingPrecisionTimed } = require('./playwrightBooking');
 const { decryptPassword } = require('./decryptPassword');
 const { getBookingStrategy, formatInGameTimeZone } = require('./bookingWindowCalculator');
-const { syncWithGameTimeServer, isTimeSyncFresh } = require('./timeSync');
+const { syncWithGameTimeServer, measureNetworkLatency, isTimeSyncFresh } = require('./timeSync');
 require('dotenv').config();
 
 // Track scheduled bookings to avoid double-scheduling
@@ -117,26 +117,53 @@ async function scheduleBooking(booking) {
     const minutes = Math.floor((delayMs % 3600000) / 60000);
     console.log(`[Scheduler] Scheduling for ${hours}h ${minutes}m from now`);
 
-    // Sync time 10 minutes before execution
-    const syncTime = delayMs - (10 * 60 * 1000);
-    if (syncTime > 0) {
+    // Initial sync 10 minutes before execution
+    const initialSyncTime = delayMs - (10 * 60 * 1000);
+    if (initialSyncTime > 0) {
       setTimeout(async () => {
-        console.log('[Scheduler] Pre-execution time sync (T-10min)...');
+        console.log('[Scheduler] Initial time sync (T-10min)...');
         await syncWithGameTimeServer();
-      }, syncTime);
+      }, initialSyncTime);
     } else {
       // Less than 10 minutes away, sync NOW
       console.log('[Scheduler] Booking soon - syncing time now...');
       await syncWithGameTimeServer();
     }
 
-    // Schedule the precision execution
+    // Final sync 2 minutes before execution for maximum precision
+    const finalSyncTime = delayMs - (2 * 60 * 1000);
+    if (finalSyncTime > 0) {
+      setTimeout(async () => {
+        console.log('[Scheduler] Final time sync (T-2min) for maximum precision...');
+        await syncWithGameTimeServer();
+      }, finalSyncTime);
+    }
+
+    // Check if we have enough time for precision mode (need at least 30s for prep)
+    if (delayMs < 30000) {
+      console.log('');
+      console.log('⚠️  WARNING: Not enough time for PRECISION mode!');
+      console.log(`⚠️  Only ${Math.floor(delayMs/1000)}s until target, need at least 30s for prep work`);
+      console.log('⚠️  Switching to IMMEDIATE execution mode instead...');
+      console.log('');
+      await executeBookingWrapper(booking);
+      scheduledBookings.delete(booking.id);
+      return;
+    }
+
+    // Calculate when to START precision execution (T-30s)
+    const executionStartTime = strategy.executeAt.getTime() - 30000;
+    const executionDelay = executionStartTime - now;
+
+    // Schedule precision execution to START at T-30s
     setTimeout(async () => {
-      console.log('[Scheduler] Time reached! Starting precision execution...');
+      console.log('[Scheduler] Precision execution starting now (T-30s)...');
+      console.log('');
       await executePrecisionBookingWrapper(booking, strategy.executeAt.getTime());
-    }, delayMs);
+    }, executionDelay);
 
     console.log(`[Scheduler] Booking ${booking.id} scheduled successfully`);
+    console.log(`[Scheduler] Precision execution will start in ${Math.floor(executionDelay/1000)}s (at T-30s)`);
     console.log('');
   }
 }
@@ -174,6 +201,7 @@ async function executeBookingWrapper(booking) {
     }
 
     console.log(`[Server] Courts to attempt: ${courtsToTry.join(', ')}`);
+    console.log(`[Server] Booking type: ${booking.booking_type} (${booking.duration_hours} hours)`);
 
     // Execute immediate booking
     const result = await executeBooking({
@@ -182,8 +210,9 @@ async function executeBookingWrapper(booking) {
       courts: courtsToTry,
       date: booking.booking_date,
       time: timeInMinutes,
-      durationHours: booking.duration_hours,
-      guestName: 'G'
+      guestName: 'G',
+      bookingType: booking.booking_type,
+      durationHours: booking.duration_hours
     });
 
     // Update database
@@ -229,6 +258,7 @@ async function executePrecisionBookingWrapper(booking, targetTimestamp) {
     }
 
     console.log(`[Server] Courts to attempt: ${courtsToTry.join(', ')}`);
+    console.log(`[Server] Booking type: ${booking.booking_type} (${booking.duration_hours} hours)`);
 
     // Execute precision-timed booking
     const result = await executeBookingPrecisionTimed({
@@ -237,7 +267,9 @@ async function executePrecisionBookingWrapper(booking, targetTimestamp) {
       courts: courtsToTry,
       date: booking.booking_date,
       time: timeInMinutes,
-      guestName: 'G'
+      guestName: 'G',
+      bookingType: booking.booking_type,
+      durationHours: booking.duration_hours
     }, targetTimestamp);
 
     // Update database
@@ -380,13 +412,47 @@ async function checkForNewBookings() {
   }
 }
 
-console.log('[Server] ✅ Server started successfully');
-console.log(`[Server] Polling interval: ${CHECK_INTERVAL_MS / 1000 / 60} minutes`);
-console.log('[Server] Press Ctrl+C to stop');
-console.log('');
-
-// Run initial check immediately on startup
+// Test network latency on startup
 (async () => {
+  console.log('[Server] Testing network latency to GameTime server...');
+  console.log('');
+
+  try {
+    const rtt = await measureNetworkLatency();
+    const tokenDelay = rtt; // No safety buffer for testing
+
+    console.log('');
+    console.log('========================================');
+    console.log('[Server] Network Configuration (TEST MODE)');
+    console.log('========================================');
+    console.log(`[Server] Baseline RTT:           ${rtt}ms`);
+    console.log(`[Server] Token generation delay: T-${tokenDelay}ms (RTT, no buffer - TEST MODE)`);
+    console.log(`[Server] This means in PRECISION mode:`);
+    console.log(`[Server]   - Token will be generated ${tokenDelay}ms before T-0`);
+    console.log(`[Server]   - Submit will happen at T-0 (8:00:00.000 AM)`);
+    console.log(`[Server]   - Expected arrival at server: ~${Math.floor(rtt/2)}ms after T-0`);
+    console.log('========================================');
+    console.log('');
+
+    if (rtt > 300) {
+      console.log('⚠️  WARNING: High network latency detected!');
+      console.log(`⚠️  RTT of ${rtt}ms is quite high. Consider:`);
+      console.log('⚠️  1. Running server closer to US East Coast');
+      console.log('⚠️  2. Using a VPN with US servers');
+      console.log('⚠️  3. Checking network connection quality');
+      console.log('');
+    }
+  } catch (error) {
+    console.error('[Server] Failed to measure network latency:', error.message);
+    console.log('[Server] Will use 150ms default RTT for token generation (TEST MODE: no buffer)');
+    console.log('');
+  }
+
+  console.log('[Server] ✅ Server started successfully');
+  console.log(`[Server] Polling interval: ${CHECK_INTERVAL_MS / 1000 / 60} minutes`);
+  console.log('[Server] Press Ctrl+C to stop');
+  console.log('');
+
   console.log('[Server] Running initial check...');
   console.log('');
   await checkForNewBookings();

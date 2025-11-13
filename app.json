@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "JC",
-    "slug": "JC",
+    "name": "JC Court Booking",
+    "slug": "jc-court-booking",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -9,7 +9,14 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourname.jc",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app does not use the camera.",
+        "NSPhotoLibraryUsageDescription": "This app does not access your photo library.",
+        "NSLocationWhenInUseUsageDescription": "This app does not use your location."
+      }
     },
     "android": {
       "adaptiveIcon": {

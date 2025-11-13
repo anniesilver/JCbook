@@ -126,6 +126,54 @@ function isTimeSyncFresh() {
 }
 
 /**
+ * Measure network latency to GameTime server
+ * Takes median of 3 measurements for reliability
+ *
+ * @returns {Promise<number>} Network round-trip time in milliseconds
+ */
+async function measureNetworkLatency() {
+  console.log('[TimeSync] Measuring network latency to GameTime server...');
+
+  const measurements = [];
+
+  for (let i = 0; i < 3; i++) {
+    const start = Date.now();
+
+    try {
+      await fetch('https://jct.gametime.net', {
+        method: 'HEAD',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+
+      const rtt = Date.now() - start;
+      measurements.push(rtt);
+      console.log(`[TimeSync] Measurement ${i + 1}/3: ${rtt}ms`);
+
+      // Small delay between measurements
+      if (i < 2) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    } catch (error) {
+      console.error(`[TimeSync] Latency measurement ${i + 1} failed:`, error.message);
+      measurements.push(150); // Fallback to conservative estimate
+    }
+  }
+
+  // Sort and take median
+  measurements.sort((a, b) => a - b);
+  const median = measurements[1];
+
+  console.log('[TimeSync] ========================================');
+  console.log(`[TimeSync] Network latency measurements: ${measurements.join('ms, ')}ms`);
+  console.log(`[TimeSync] Median RTT: ${median}ms`);
+  console.log('[TimeSync] ========================================');
+
+  return median;
+}
+
+/**
  * Reset time sync (for testing purposes)
  */
 function resetTimeSync() {
@@ -139,5 +187,6 @@ module.exports = {
   getCurrentSyncedTime,
   getTimeSyncStatus,
   isTimeSyncFresh,
+  measureNetworkLatency,
   resetTimeSync
 };

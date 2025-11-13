@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { StatusBadge } from './StatusBadge';
 import { Booking } from '../../types/index';
+import { getUserFriendlyErrorMessage } from '../../utils/errorMessages';
 
 interface BookingCardProps {
   booking: Booking;
@@ -117,19 +118,30 @@ export const BookingCard: React.FC<BookingCardProps> = ({
           <Text style={styles.detailLabel}>Duration:</Text>
           <Text style={styles.detailValue}>{booking.duration_hours} hour{booking.duration_hours > 1 ? 's' : ''}</Text>
         </View>
+        {booking.auto_book_status === 'success' && booking.actual_court && (
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Confirmed Court:</Text>
+            <Text
+              style={[
+                styles.detailValue,
+                booking.actual_court !== booking.preferred_court && styles.differentCourtValue
+              ]}
+            >
+              Court {booking.actual_court}
+            </Text>
+          </View>
+        )}
         {booking.auto_book_status === 'success' && booking.gametime_confirmation_id && (
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Confirmation:</Text>
+            <Text style={styles.detailLabel}>Confirmation ID:</Text>
             <Text style={styles.detailValue}>{booking.gametime_confirmation_id}</Text>
           </View>
         )}
-        {booking.status_message && (
-          <View style={booking.auto_book_status === 'failed' ? styles.errorRow : styles.successRow}>
-            <Text style={booking.auto_book_status === 'failed' ? styles.errorLabel : styles.successLabel}>
-              {booking.auto_book_status === 'failed' ? 'Error:' : 'Status:'}
-            </Text>
-            <Text style={booking.auto_book_status === 'failed' ? styles.errorValue : styles.successValue}>
-              {booking.status_message}
+        {booking.auto_book_status === 'failed' && (
+          <View style={styles.errorRow}>
+            <Text style={styles.errorLabel}>Error:</Text>
+            <Text style={styles.errorValue}>
+              {getUserFriendlyErrorMessage(booking.error_message)}
             </Text>
           </View>
         )}
@@ -205,6 +217,10 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '600',
   },
+  differentCourtValue: {
+    color: '#10B981', // Bright Emerald Green
+    fontWeight: '700',
+  },
   errorRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -221,25 +237,6 @@ const styles = StyleSheet.create({
   errorValue: {
     fontSize: 12,
     color: '#DC3545',
-    flex: 1,
-    marginLeft: 8,
-  },
-  successRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-    backgroundColor: '#D4EDDA',
-    borderRadius: 6,
-    padding: 8,
-  },
-  successLabel: {
-    fontSize: 12,
-    color: '#155724',
-    fontWeight: '600',
-  },
-  successValue: {
-    fontSize: 12,
-    color: '#155724',
     flex: 1,
     marginLeft: 8,
   },
