@@ -182,6 +182,7 @@ async function executeBookingWrapper(booking) {
       courts: courtsToTry,
       date: booking.booking_date,
       time: timeInMinutes,
+      durationHours: booking.duration_hours,
       guestName: 'G'
     });
 
