@@ -82,7 +82,7 @@ async function getAvailableCourts(page, date, time) {
 
       // Extract court numbers from header row
       const headerRow = rows[0];
-      const courtHeaders = Array.from(headerRow.querySelectorAll('th, td')).slice(1);
+      const courtHeaders = Array.from(headerRow.querySelectorAll('th, td'));
       const courtMapping = {};
 
       courtHeaders.forEach((header, index) => {
@@ -97,7 +97,7 @@ async function getAvailableCourts(page, date, time) {
 
       // Get the data row (only one row with all courts)
       const dataRow = rows[1];
-      const courtCells = Array.from(dataRow.querySelectorAll('td')).slice(1); // Skip first cell
+      const courtCells = Array.from(dataRow.querySelectorAll('td')); // Don't skip - indices must match header
 
       console.log(`Found ${courtCells.length} court cells`);
 
