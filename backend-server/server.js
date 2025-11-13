@@ -321,21 +321,21 @@ async function checkForNewBookings() {
       .from('user_credentials')
       .select('user_id')
       .eq('gametime_username', filterUsername)
-      .maybeSingle();
+      .limit(1);
 
     if (credError) {
       console.error(`[Server] Database error when looking up username: ${credError.message}`);
       return;
     }
 
-    if (!credentials) {
+    if (!credentials || credentials.length === 0) {
       console.error(`[Server] ERROR: Username '${filterUsername}' not found in user_credentials table`);
       console.error('[Server] Please check the username and try again');
       return;
     }
 
-    const userId = credentials.user_id;
-    console.log(`[Server] Filtering bookings for user ID: ${userId}`);
+    const userId = credentials[0].user_id;
+    console.log(`[Server] Found user ID: ${userId}`);
 
     // Now fetch bookings for this user only
     const { data: bookings, error } = await supabase
