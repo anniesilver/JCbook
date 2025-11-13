@@ -323,8 +323,13 @@ async function checkForNewBookings() {
       .eq('gametime_username', filterUsername)
       .maybeSingle();
 
-    if (credError || !credentials) {
-      console.error(`[Server] ERROR: Username '${filterUsername}' not found in database`);
+    if (credError) {
+      console.error(`[Server] Database error when looking up username: ${credError.message}`);
+      return;
+    }
+
+    if (!credentials) {
+      console.error(`[Server] ERROR: Username '${filterUsername}' not found in user_credentials table`);
       console.error('[Server] Please check the username and try again');
       return;
     }
