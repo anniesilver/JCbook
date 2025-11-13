@@ -26,11 +26,28 @@ require('dotenv').config();
 // Track scheduled bookings to avoid double-scheduling
 const scheduledBookings = new Set();
 
+// Get username filter from command line argument
+const filterUsername = process.argv[2];
+
 console.log('========================================');
 console.log('JC Court Booking Automation Server');
 console.log('========================================');
 console.log('');
-console.log('[Server] Starting...');
+
+// Check if username parameter is provided
+if (!filterUsername) {
+  console.error('[Server] ERROR: Username parameter required!');
+  console.error('');
+  console.error('Usage: node server.js <gametime_username>');
+  console.error('Example: node server.js annieyang');
+  console.error('');
+  console.error('This will only process bookings for the specified GameTime username.');
+  process.exit(1);
+}
+
+console.log(`[Server] Starting with username filter: ${filterUsername}`);
+console.log('[Server] Will ONLY process bookings for this user');
+console.log('');
 
 // Validate environment variables
 if (!process.env.SUPABASE_URL) {
@@ -329,12 +346,35 @@ async function updateBookingResult(booking, result, courtsToTry) {
 const CHECK_INTERVAL_MS = 3600000; // 1 hour
 
 async function checkForNewBookings() {
-  console.log('[Server] Checking for new pending bookings...');
+  console.log(`[Server] Checking for new pending bookings (username: ${filterUsername})...`);
 
   try {
+    // First, get the user_id for the specified username
+    const { data: credentials, error: credError } = await supabase
+      .from('user_credentials')
+      .select('user_id')
+      .eq('gametime_username', filterUsername)
+      .limit(1);
+
+    if (credError) {
+      console.error(`[Server] Database error when looking up username: ${credError.message}`);
+      return;
+    }
+
+    if (!credentials || credentials.length === 0) {
+      console.error(`[Server] ERROR: Username '${filterUsername}' not found in user_credentials table`);
+      console.error('[Server] Please check the username and try again');
+      return;
+    }
+
+    const userId = credentials[0].user_id;
+    console.log(`[Server] Found user ID: ${userId}`);
+
+    // Now fetch bookings for this user only
     const { data: bookings, error } = await supabase
       .from('bookings')
       .select('*')
+      .eq('user_id', userId)
       .eq('status', 'pending')
       .in('auto_book_status', ['pending', 'failed'])
       .lt('retry_count', 3)
@@ -346,11 +386,11 @@ async function checkForNewBookings() {
     }
 
     if (!bookings || bookings.length === 0) {
-      console.log('[Server] No new bookings found');
+      console.log('[Server] No new bookings found for this user');
       return;
     }
 
-    console.log(`[Server] Found ${bookings.length} booking(s)`);
+    console.log(`[Server] Found ${bookings.length} booking(s) for user ${filterUsername}`);
     console.log('');
 
     for (const booking of bookings) {
