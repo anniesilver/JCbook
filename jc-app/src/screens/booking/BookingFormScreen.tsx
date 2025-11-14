@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import Checkbox from 'expo-checkbox';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { ThemedText } from '../../components/themed-text';
+import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '../../hooks/useAuth';
 import { useBooking } from '../../hooks/useBooking';
 import { BookingInput, Duration } from '../../types/index';
