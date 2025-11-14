@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { CredentialStorageScreen } from '@/screens/credential/CredentialStorageScreen';
+import { CredentialStorageScreen } from '../../src/screens/credential/CredentialStorageScreen';
 
 /**
  * Credentials screen component for the tabs navigation

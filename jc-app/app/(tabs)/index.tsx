@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/hooks/useAuth';
-import { useBookingStore } from '@/store/bookingStore';
+import { useAuth } from '../../src/hooks/useAuth';
+import { useBookingStore } from '../../src/store/bookingStore';
 
 export default function HomeScreen() {
   const router = useRouter();

@@ -12,8 +12,8 @@ import { ActivityIndicator, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useAuth } from '@/hooks/useAuth';
-import { initializeAuthListener } from '@/services/authListener';
+import { useAuth } from '../src/hooks/useAuth';
+import { initializeAuthListener } from '../src/services/authListener';
 
 export const unstable_settings = {
   anchor: '(tabs)',
