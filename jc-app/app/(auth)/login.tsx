@@ -5,8 +5,8 @@
 
 import React from 'react';
 import { useRouter } from 'expo-router';
-import { LoginScreen } from '../../src/screens/auth/LoginScreen';
-import { useAuth } from '../../src/hooks/useAuth';
+import { LoginScreen } from '@/screens/auth/LoginScreen';
+import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
 
 /**
