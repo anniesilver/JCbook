@@ -20,20 +20,40 @@ if (Platform.OS !== "web") {
 
 // Initialize Supabase client
 // Try to get from expo-constants first (works in builds), then fall back to process.env (dev)
-const supabaseUrl =
-  Constants.expoConfig?.extra?.supabaseUrl ||
-  process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey =
-  Constants.expoConfig?.extra?.supabaseAnonKey ||
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+let supabaseUrl: string;
+let supabaseAnonKey: string;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    "Missing Supabase configuration. Please set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in your environment variables."
-  );
+try {
+  console.log("[AuthService] Initializing Supabase client...");
+  console.log("[AuthService] Constants.expoConfig:", Constants.expoConfig?.name);
+  console.log("[AuthService] Constants.expoConfig.extra:", Constants.expoConfig?.extra ? "exists" : "missing");
+
+  supabaseUrl =
+    Constants.expoConfig?.extra?.supabaseUrl ||
+    process.env.EXPO_PUBLIC_SUPABASE_URL ||
+    "";
+  supabaseAnonKey =
+    Constants.expoConfig?.extra?.supabaseAnonKey ||
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+    "";
+
+  console.log("[AuthService] Supabase URL found:", supabaseUrl ? "YES" : "NO");
+  console.log("[AuthService] Supabase Key found:", supabaseAnonKey ? "YES" : "NO");
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    const error = new Error(
+      `Missing Supabase configuration. URL: ${supabaseUrl ? "found" : "missing"}, Key: ${supabaseAnonKey ? "found" : "missing"}`
+    );
+    console.error("[AuthService] Configuration error:", error.message);
+    throw error;
+  }
+} catch (e) {
+  console.error("[AuthService] Fatal initialization error:", e);
+  throw e;
 }
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
+console.log("[AuthService] Supabase client created successfully");
 
 /**
  * Export Supabase client for use in other services
