@@ -1,0 +1,9 @@
+# Exclude backend server from EAS builds
+jc-backend-server/
+
+# Exclude git files
+.git/
+.github/
+
+# Exclude project documentation
+PROJECT-STRUCTURE.md
