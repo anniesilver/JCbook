@@ -15,7 +15,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "This app does not use the camera.",
         "NSPhotoLibraryUsageDescription": "This app does not access your photo library.",
-        "NSLocationWhenInUseUsageDescription": "This app does not use your location."
+        "NSLocationWhenInUseUsageDescription": "This app does not use your location.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -50,6 +51,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "bee25e31-848d-4212-83ee-a636497270a8"
+      }
     }
   }
 }
