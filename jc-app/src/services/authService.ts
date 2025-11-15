@@ -5,6 +5,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 import { LoginCredentials, RegisterCredentials, User, APIError } from "../types/index";
 
 // Platform-specific secure storage
@@ -18,8 +19,13 @@ if (Platform.OS !== "web") {
 }
 
 // Initialize Supabase client
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+// Try to get from expo-constants first (works in builds), then fall back to process.env (dev)
+const supabaseUrl =
+  Constants.expoConfig?.extra?.supabaseUrl ||
+  process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey =
+  Constants.expoConfig?.extra?.supabaseAnonKey ||
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
